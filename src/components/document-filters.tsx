@@ -1,0 +1,255 @@
+'use client';
+
+import React, { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Search, Filter } from 'lucide-react';
+import {
+  DEPARTMENTS,
+  ACADEMIC_YEARS,
+  SEMESTERS,
+  MATERIAL_TYPES,
+  UNITS,
+} from '@/lib/constants';
+import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
+
+export function DocumentFilters() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const [q, setQ] = useState(searchParams.get('q') || '');
+  const [department, setDepartment] = useState(searchParams.get('department') || '');
+  const [academicYear, setAcademicYear] = useState(searchParams.get('academic_year') || '');
+  const [semester, setSemester] = useState(searchParams.get('semester') || '');
+  const [subject, setSubject] = useState(searchParams.get('subject') || '');
+  const [unit, setUnit] = useState(searchParams.get('unit') || '');
+  const [materialType, setMaterialType] = useState(searchParams.get('material_type') || '');
+  const [sort, setSort] = useState(searchParams.get('sort') || 'newest');
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+
+  const applyFilters = (overrides?: Record<string, string>) => {
+    const params = new URLSearchParams();
+
+    const activeQ = overrides?.q !== undefined ? overrides.q : q;
+    const activeDept = overrides?.department !== undefined ? overrides.department : department;
+    const activeYear = overrides?.academic_year !== undefined ? overrides.academic_year : academicYear;
+    const activeSem = overrides?.semester !== undefined ? overrides.semester : semester;
+    const activeSub = overrides?.subject !== undefined ? overrides.subject : subject;
+    const activeUnit = overrides?.unit !== undefined ? overrides.unit : unit;
+    const activeMat = overrides?.material_type !== undefined ? overrides.material_type : materialType;
+    const activeSort = overrides?.sort !== undefined ? overrides.sort : sort;
+
+    if (activeQ.trim()) params.set('q', activeQ.trim());
+    if (activeDept) params.set('department', activeDept);
+    if (activeYear) params.set('academic_year', activeYear);
+    if (activeSem) params.set('semester', activeSem);
+    if (activeSub.trim()) params.set('subject', activeSub.trim());
+    if (activeUnit) params.set('unit', activeUnit);
+    if (activeMat) params.set('material_type', activeMat);
+    if (activeSort && activeSort !== 'newest') params.set('sort', activeSort);
+
+    router.push(`/documents?${params.toString()}`);
+    setMobileFilterOpen(false);
+  };
+
+  const handleReset = () => {
+    setQ('');
+    setDepartment('');
+    setAcademicYear('');
+    setSemester('');
+    setSubject('');
+    setUnit('');
+    setMaterialType('');
+    setSort('newest');
+    router.push('/documents');
+  };
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    applyFilters();
+  };
+
+  const hasActiveFilters = Boolean(
+    q || department || academicYear || semester || subject || unit || materialType || (sort && sort !== 'newest')
+  );
+
+  return (
+    <div className="space-y-6">
+      {/* Search Input Bar (Editorial) */}
+      <form onSubmit={handleSearchSubmit} className="relative flex items-center">
+        <input
+          type="text"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search by title, subject, course code, or topic..."
+          className="w-full h-13 pl-4 pr-32 bg-paper border border-ink/25 text-ink placeholder:text-ash text-sm focus:outline-none focus:border-ink transition-colors"
+        />
+        <div className="absolute right-2 flex items-center gap-1.5">
+          {q && (
+            <button
+              type="button"
+              onClick={() => {
+                setQ('');
+                applyFilters({ q: '' });
+              }}
+              className="meta-mono text-ash hover:text-ink px-2 py-1"
+            >
+              Clear
+            </button>
+          )}
+          <Button
+            type="submit"
+            size="sm"
+            variant="primary"
+            rightIcon={<Search className="w-3.5 h-3.5" />}
+          >
+            Search
+          </Button>
+        </div>
+      </form>
+
+      {/* Mobile filter toggle button */}
+      <div className="lg:hidden flex items-center justify-between">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => setMobileFilterOpen(!mobileFilterOpen)}
+          leftIcon={<Filter className="w-3.5 h-3.5" />}
+        >
+          {mobileFilterOpen ? 'Hide Filters' : 'Filter Archive'}
+        </Button>
+
+        {hasActiveFilters && (
+          <button
+            onClick={handleReset}
+            className="link-underline meta-mono text-oxblood text-xs cursor-pointer"
+          >
+            Reset Filters
+          </button>
+        )}
+      </div>
+
+      {/* Filter Sidebar Container */}
+      <div className={`${mobileFilterOpen ? 'block' : 'hidden'} lg:block bg-card border border-ink/15 p-6 space-y-6`}>
+        <div className="flex items-center justify-between pb-3 border-b border-ink/15">
+          <div className="flex items-center gap-2">
+            <span className="meta-mono text-oxblood">Index</span>
+            <span className="block h-px w-6 bg-ink/30" />
+            <span className="label-eyebrow text-ink">Classification</span>
+          </div>
+          {hasActiveFilters && (
+            <button
+              onClick={handleReset}
+              className="link-underline meta-mono text-oxblood text-xs cursor-pointer"
+            >
+              Clear All
+            </button>
+          )}
+        </div>
+
+        <div className="space-y-4">
+          {/* Department */}
+          <Select
+            label="Department"
+            value={department}
+            onChange={(e) => {
+              setDepartment(e.target.value);
+              applyFilters({ department: e.target.value });
+            }}
+          >
+            <option value="">All Departments</option>
+            {DEPARTMENTS.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </Select>
+
+          {/* Material Type */}
+          <Select
+            label="Resource Format"
+            value={materialType}
+            onChange={(e) => {
+              setMaterialType(e.target.value);
+              applyFilters({ material_type: e.target.value });
+            }}
+          >
+            <option value="">All Formats</option>
+            {MATERIAL_TYPES.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
+            ))}
+          </Select>
+
+          {/* Academic Year */}
+          <Select
+            label="Academic Standing"
+            value={academicYear}
+            onChange={(e) => {
+              setAcademicYear(e.target.value);
+              applyFilters({ academic_year: e.target.value });
+            }}
+          >
+            <option value="">All Years</option>
+            {ACADEMIC_YEARS.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </Select>
+
+          {/* Semester */}
+          <Select
+            label="Semester"
+            value={semester}
+            onChange={(e) => {
+              setSemester(e.target.value);
+              applyFilters({ semester: e.target.value });
+            }}
+          >
+            <option value="">All Semesters</option>
+            {SEMESTERS.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </Select>
+
+          {/* Unit / Module */}
+          <Select
+            label="Unit Module"
+            value={unit}
+            onChange={(e) => {
+              setUnit(e.target.value);
+              applyFilters({ unit: e.target.value });
+            }}
+          >
+            <option value="">All Units</option>
+            {UNITS.map((u) => (
+              <option key={u} value={u}>
+                {u}
+              </option>
+            ))}
+          </Select>
+
+          {/* Sort Order */}
+          <Select
+            label="Catalog Ordering"
+            value={sort}
+            onChange={(e) => {
+              setSort(e.target.value);
+              applyFilters({ sort: e.target.value });
+            }}
+          >
+            <option value="newest">Newest Additions</option>
+            <option value="popular">Most Downloaded</option>
+            <option value="title">Title (A-Z)</option>
+            <option value="size_desc">File Size (Largest)</option>
+          </Select>
+        </div>
+      </div>
+    </div>
+  );
+}
