@@ -79,17 +79,18 @@ export function DocumentFilters() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Search Input Bar (Editorial) */}
       <form onSubmit={handleSearchSubmit} className="relative flex items-center">
+        <Search className="w-4 h-4 text-ash/60 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
         <input
           type="text"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search by title, subject, course code, or topic..."
-          className="w-full h-13 pl-4 pr-32 bg-paper border border-ink/25 text-ink placeholder:text-ash text-sm focus:outline-none focus:border-ink transition-colors"
+          placeholder="Search by course code, subject, title..."
+          className="w-full h-11 pl-10 pr-24 bg-card border border-ink/20 text-ink placeholder:text-ash/70 text-xs sm:text-sm focus:outline-hidden focus:border-ink transition-colors"
         />
-        <div className="absolute right-2 flex items-center gap-1.5">
+        <div className="absolute right-1.5 flex items-center gap-1">
           {q && (
             <button
               type="button"
@@ -97,7 +98,7 @@ export function DocumentFilters() {
                 setQ('');
                 applyFilters({ q: '' });
               }}
-              className="meta-mono text-ash hover:text-ink px-2 py-1"
+              className="meta-mono text-ash hover:text-ink text-xs px-1.5 py-0.5"
             >
               Clear
             </button>
@@ -106,7 +107,7 @@ export function DocumentFilters() {
             type="submit"
             size="sm"
             variant="primary"
-            rightIcon={<Search className="w-3.5 h-3.5" />}
+            className="h-8 px-2.5 text-xs font-medium"
           >
             Search
           </Button>
@@ -122,7 +123,7 @@ export function DocumentFilters() {
           onClick={() => setMobileFilterOpen(!mobileFilterOpen)}
           leftIcon={<Filter className="w-3.5 h-3.5" />}
         >
-          {mobileFilterOpen ? 'Hide Filters' : 'Filter Archive'}
+          {mobileFilterOpen ? 'Hide Filters' : 'Filter Catalogue'}
         </Button>
 
         {hasActiveFilters && (
@@ -136,24 +137,24 @@ export function DocumentFilters() {
       </div>
 
       {/* Filter Sidebar Container */}
-      <div className={`${mobileFilterOpen ? 'block' : 'hidden'} lg:block bg-card border border-ink/15 p-6 space-y-6`}>
-        <div className="flex items-center justify-between pb-3 border-b border-ink/15">
+      <div className={`${mobileFilterOpen ? 'block' : 'hidden'} lg:block bg-card border border-ink/15 p-5 sm:p-6 space-y-4`}>
+        <div className="flex items-center justify-between pb-3 border-b border-ink/10">
           <div className="flex items-center gap-2">
-            <span className="meta-mono text-oxblood">Index</span>
-            <span className="block h-px w-6 bg-ink/30" />
-            <span className="label-eyebrow text-ink">Classification</span>
+            <span className="meta-mono text-oxblood text-xs font-semibold uppercase tracking-wider">Index</span>
+            <span className="block h-px w-4 bg-ink/20" aria-hidden="true" />
+            <span className="label-eyebrow text-ink text-xs font-medium">Classification</span>
           </div>
           {hasActiveFilters && (
             <button
               onClick={handleReset}
-              className="link-underline meta-mono text-oxblood text-xs cursor-pointer"
+              className="meta-mono text-oxblood text-xs hover:underline cursor-pointer"
             >
               Clear All
             </button>
           )}
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-3.5">
           {/* Department */}
           <Select
             label="Department"
@@ -258,7 +259,7 @@ export function DocumentFilters() {
 
           {/* Sort Order */}
           <Select
-            label="Catalog Ordering"
+            label="Catalogue Ordering"
             value={sort}
             onChange={(e) => {
               setSort(e.target.value);

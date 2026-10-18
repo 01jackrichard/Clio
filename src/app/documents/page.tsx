@@ -1,11 +1,11 @@
 import React, { Suspense } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, ArrowRight, X, ArrowUpRight, AlertCircle, BookOpen } from 'lucide-react';
+import { ArrowLeft, ArrowRight, X, ArrowUpRight, AlertCircle, BookOpen, Plus } from 'lucide-react';
 import { getDocuments } from '@/lib/services/document-service';
 import { DocumentFilters } from '@/components/document-filters';
 import { DocumentCard } from '@/components/document-card';
 import { config } from '@/lib/config';
-import { Badge, Container, buttonVariants } from '@/components/ui';
+import { Container, buttonVariants } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -70,254 +70,236 @@ export default async function DocumentsPage({ searchParams }: DocumentsPageProps
 
   return (
     <div className="bg-paper min-h-screen">
-      {/* Running Masthead Header Line */}
-      <div className="border-b border-ink/15 py-3.5 bg-paper">
+      {/* 1. Refined Catalogue Hero */}
+      <header className="border-b border-ink/15 py-10 sm:py-14">
         <Container>
-          <div className="grid grid-cols-12 gap-x-4 sm:gap-x-6 items-baseline meta-mono text-ash">
-            <span className="col-span-3 sm:col-span-2 text-ink font-semibold tracking-wider">CLIO</span>
-            <span className="hidden sm:block sm:col-span-3 text-ink/70">Archive Catalogue · Index</span>
-            <span className="hidden md:block md:col-span-4 text-ink/70">
-              {config.app.collegeName} · Hub
-            </span>
-            <span className="col-span-9 sm:col-span-7 md:col-span-3 text-right text-ink">
-              PAGE {page} OF {Math.max(1, result.totalPages)}
-            </span>
-          </div>
-        </Container>
-      </div>
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
+            <div className="max-w-2xl space-y-3">
+              {/* Eyebrow Breadcrumb */}
+              <div className="flex flex-wrap items-center gap-2.5 meta-mono text-xs text-ash">
+                <span className="text-oxblood font-semibold tracking-wider uppercase">Catalogue</span>
+                <span className="text-ink/20" aria-hidden="true">/</span>
+                <span className="tracking-wide uppercase">Academic Archive</span>
+                {result.total > 0 && (
+                  <>
+                    <span className="text-ink/20" aria-hidden="true">/</span>
+                    <span className="text-ink font-medium">
+                      {result.total} {result.total === 1 ? 'Folio' : 'Folios'} Preserved
+                    </span>
+                  </>
+                )}
+              </div>
 
-      <Container className="pt-10 sm:pt-14 pb-20">
-        {/* Section Title & Header */}
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-10 pb-8 border-b border-ink/15">
-          <div>
-            <div className="flex flex-wrap items-center gap-3 mb-4">
-              <span className="meta-mono text-oxblood font-semibold">Catalogue</span>
-              <span className="block h-px w-8 bg-ink/40" aria-hidden="true" />
-              <span className="label-eyebrow">Academic Archive</span>
-              {result.total > 0 && (
-                <>
-                  <span className="block h-px w-4 bg-ink/30" aria-hidden="true" />
-                  <Badge variant="oxblood" size="sm" dot>
-                    {result.total} {result.total === 1 ? 'Folio' : 'Folios'} Preserved
-                  </Badge>
-                </>
-              )}
+              {/* Editorial Display Heading */}
+              <h1 className="text-3xl sm:text-4xl lg:text-[2.65rem] font-display font-normal leading-[1.15] tracking-tight text-ink text-balance">
+                The Document Archive, <span className="display-italic text-ink/80">indexed & verified.</span>
+              </h1>
+
+              {/* Scannable Supporting Summary */}
+              <p className="text-xs sm:text-sm text-ash max-w-xl leading-relaxed">
+                Search and inspect lecture notes, curriculum folios, past examination solutions, and laboratory manuals verified for {config.app.collegeName}.
+              </p>
             </div>
 
-            <h1 className="text-[clamp(2.5rem,5.5vw,4.5rem)] font-display font-normal leading-[0.96] tracking-[-0.03em] text-ink text-balance">
-              The Document Archive, <span className="display-italic text-ink/85">indexed & verified.</span>
-            </h1>
-
-            <p className="mt-4 text-sm sm:text-base text-ash max-w-2xl leading-relaxed">
-              Examine lecture notes, syllabus folios, past examination solutions, and laboratory manuals verified for {config.app.collegeName}.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3 shrink-0">
+            {/* Integrated Hero Action */}
             <Link
               href="/upload"
               className={buttonVariants({
                 variant: 'primary',
                 size: 'md',
-                className: 'gap-2 group',
+                className: 'gap-2 shrink-0 self-start sm:self-end font-medium',
               })}
             >
-              <span>Contribute PDF</span>
-              <ArrowUpRight className="h-4 w-4 transition-transform group-hover:-translate-y-px group-hover:translate-x-px" />
+              <Plus className="h-4 w-4" />
+              <span>Contribute Folio</span>
             </Link>
           </div>
-        </div>
+        </Container>
+      </header>
 
-        {/* Main Grid: Filters + Document Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
-          {/* Left Column: Filter Sidebar */}
-          <aside className="lg:col-span-4">
-            <div className="sticky top-24">
-              <Suspense fallback={<div className="meta-mono text-ash">Loading archive filters...</div>}>
-                <DocumentFilters />
-              </Suspense>
-            </div>
-          </aside>
-
-          {/* Right Column: Search Results */}
-          <main className="lg:col-span-8 space-y-6">
-            {/* Active Filter Chips */}
-            {activeFilters.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2 p-3.5 bg-card border border-ink/15">
-                <span className="meta-mono text-ash text-xs mr-1">Active Criteria:</span>
-                {activeFilters.map((f) => (
-                  <Link
-                    key={f.key}
-                    href={buildRemoveFilterUrl(f.key)}
-                    className="group inline-flex items-center gap-1.5 px-2.5 py-1 bg-bone border border-ink/20 meta-mono text-ink hover:border-oxblood hover:text-oxblood transition-colors text-xs"
-                    title={`Remove ${f.label} filter`}
-                  >
-                    <span>{f.label}</span>
-                    <X className="w-3 h-3 text-ash group-hover:text-oxblood transition-colors" />
-                  </Link>
-                ))}
-                <Link
-                  href="/documents"
-                  className="link-underline meta-mono text-oxblood ml-auto text-xs"
-                >
-                  Clear All Filters
-                </Link>
+      {/* 2. Main Catalogue Content: Search & Filters -> Results */}
+      <div className="py-8 sm:py-12">
+        <Container>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10">
+            {/* Left Column: Filter Sidebar with Search */}
+            <aside className="lg:col-span-4">
+              <div className="sticky top-20">
+                <Suspense fallback={<div className="meta-mono text-xs text-ash">Loading archive filters...</div>}>
+                  <DocumentFilters />
+                </Suspense>
               </div>
-            )}
+            </aside>
 
-            {/* Results Counter Header */}
-            <div className="flex items-center justify-between meta-mono text-ash border-b border-ink/10 pb-3">
-              <span>
-                {result.total === 0
-                  ? '0 folios matching classification'
-                  : `Folios ${(result.page - 1) * result.limit + 1}–${Math.min(
-                      result.page * result.limit,
-                      result.total
-                    )} of ${result.total}`}
-              </span>
-              <span>Ordering: {params.sort || 'newest'}</span>
-            </div>
-
-            {/* Content States */}
-            {result.unconfigured ? (
-              <div className="p-8 sm:p-10 border border-ink/20 bg-card text-left space-y-4">
-                <div className="flex items-center gap-3">
-                  <span className="meta-mono text-oxblood font-semibold">Config Notice</span>
-                  <span className="block h-px w-8 bg-ink/30" aria-hidden="true" />
-                  <span className="label-eyebrow">Database Connection Required</span>
-                </div>
-                <h2 className="font-display text-2xl text-ink">Catalog Database Unconfigured</h2>
-                <p className="text-sm text-ash leading-relaxed max-w-xl">
-                  Clio is ready. To display live approved resources from Supabase, configure{' '}
-                  <code className="meta-mono bg-paper px-1.5 py-0.5 border border-ink/20">
-                    NEXT_PUBLIC_SUPABASE_URL
-                  </code>{' '}
-                  and{' '}
-                  <code className="meta-mono bg-paper px-1.5 py-0.5 border border-ink/20">
-                    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-                  </code>{' '}
-                  in <code className="meta-mono">.env.local</code>.
-                </p>
-              </div>
-            ) : result.error ? (
-              <div className="p-8 sm:p-10 border border-oxblood/30 bg-card text-left space-y-4">
-                <div className="flex items-center gap-2 text-oxblood meta-mono">
-                  <AlertCircle className="w-4 h-4" />
-                  <span>Repository Exception</span>
-                </div>
-                <h2 className="font-display text-2xl text-ink">Unable to Retrieve Archive Folios</h2>
-                <p className="text-sm text-ash leading-relaxed max-w-xl">
-                  A network or schema connectivity issue occurred while querying the document table.
-                  Please verify database status.
-                </p>
-                <div>
+            {/* Right Column: Search Results */}
+            <main className="lg:col-span-8 space-y-6">
+              {/* Active Filter Chips */}
+              {activeFilters.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 p-3 bg-card border border-ink/15 text-xs">
+                  <span className="meta-mono text-ash text-[11px] mr-1">Active Criteria:</span>
+                  {activeFilters.map((f) => (
+                    <Link
+                      key={f.key}
+                      href={buildRemoveFilterUrl(f.key)}
+                      className="group inline-flex items-center gap-1.5 px-2.5 py-1 bg-bone border border-ink/15 meta-mono text-ink hover:border-oxblood hover:text-oxblood transition-colors text-xs"
+                      title={`Remove ${f.label} filter`}
+                    >
+                      <span>{f.label}</span>
+                      <X className="w-3 h-3 text-ash group-hover:text-oxblood transition-colors" />
+                    </Link>
+                  ))}
                   <Link
                     href="/documents"
-                    className={buttonVariants({ variant: 'outline', size: 'sm', className: 'gap-1.5' })}
+                    className="meta-mono text-oxblood hover:underline ml-auto text-xs"
                   >
-                    Retry Query
+                    Clear All
                   </Link>
                 </div>
-              </div>
-            ) : result.data.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {result.data.map((doc, idx) => (
-                  <DocumentCard
-                    key={doc.id}
-                    document={doc}
-                    index={(page - 1) * result.limit + idx + 1}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="p-12 sm:p-16 text-center border border-dashed border-ink/20 bg-card space-y-4">
-                <div className="w-10 h-10 border border-ink/20 bg-bone flex items-center justify-center mx-auto text-ash">
-                  <BookOpen className="w-5 h-5" />
-                </div>
-                <div className="space-y-1">
-                  <p className="meta-mono text-oxblood">Archive Classification Empty</p>
-                  <h2 className="font-display text-2xl text-ink">
-                    No matching folios found in the library
-                  </h2>
-                </div>
-                <p className="text-sm text-ash max-w-md mx-auto leading-relaxed">
-                  No verified materials match your active criteria. Try broadening your keywords, clearing
-                  specific module units, or contribute notes for this subject.
-                </p>
-                <div className="pt-4 flex flex-wrap items-center justify-center gap-3">
-                  <Link
-                    href="/documents"
-                    className={buttonVariants({ variant: 'outline', size: 'sm' })}
-                  >
-                    Reset All Filters
-                  </Link>
-                  <Link
-                    href="/upload"
-                    className={buttonVariants({ variant: 'primary', size: 'sm', className: 'gap-1.5' })}
-                  >
-                    <span>Contribute Notes for Subject</span>
-                    <ArrowUpRight className="w-3.5 h-3.5" />
-                  </Link>
-                </div>
-              </div>
-            )}
+              )}
 
-            {/* Pagination Controls */}
-            {result.totalPages > 1 && (
-              <nav aria-label="Pagination Navigation" className="pt-8 border-t border-ink/15 flex items-center justify-between">
-                {result.page > 1 ? (
-                  <Link
-                    href={buildPageUrl(result.page - 1)}
-                    className={buttonVariants({ variant: 'outline', size: 'sm', className: 'gap-1.5 meta-mono' })}
-                  >
-                    <ArrowLeft className="w-3.5 h-3.5" />
-                    <span>Previous</span>
-                  </Link>
-                ) : (
-                  <span className="opacity-0 pointer-events-none">Prev</span>
-                )}
+              {/* Results Summary Header */}
+              <div className="flex items-center justify-between meta-mono text-xs text-ash border-b border-ink/10 pb-2.5">
+                <span>
+                  {result.total === 0
+                    ? '0 folios matching classification'
+                    : `Showing ${(result.page - 1) * result.limit + 1}–${Math.min(
+                        result.page * result.limit,
+                        result.total
+                      )} of ${result.total} ${result.total === 1 ? 'folio' : 'folios'}`}
+                </span>
+                <span className="hidden sm:inline">
+                  Ordering: {params.sort === 'downloads' ? 'Most Downloaded' : params.sort === 'title' ? 'Title (A-Z)' : 'Newest Additions'}
+                </span>
+              </div>
 
-                <div className="flex items-center gap-1.5">
-                  {Array.from({ length: result.totalPages }, (_, i) => i + 1).map((p) => {
-                    if (
-                      p === 1 ||
-                      p === result.totalPages ||
-                      (p >= result.page - 1 && p <= result.page + 1)
-                    ) {
-                      return (
-                        <Link
-                          key={p}
-                          href={buildPageUrl(p)}
-                          className={`w-8 h-8 flex items-center justify-center meta-mono text-xs transition-colors border ${
-                            p === result.page
-                              ? 'bg-ink text-paper border-ink font-semibold'
-                              : 'border-ink/20 text-ink hover:border-ink hover:bg-bone/40'
-                          }`}
-                        >
-                          {p}
-                        </Link>
-                      );
-                    }
-                    return null;
-                  })}
+              {/* Content States: Unconfigured, Error, Data Grid, or Empty */}
+              {result.unconfigured ? (
+                <div className="p-6 sm:p-8 border border-ink/20 bg-card text-left space-y-3">
+                  <div className="flex items-center gap-2 text-oxblood meta-mono text-xs font-semibold">
+                    <span className="uppercase">Configuration Notice</span>
+                    <span className="text-ink/30">•</span>
+                    <span className="text-ash font-normal">Database Connection Required</span>
+                  </div>
+                  <h2 className="font-display text-xl text-ink font-medium">Catalogue Database Unconfigured</h2>
+                  <p className="text-xs sm:text-sm text-ash leading-relaxed max-w-lg">
+                    Clio is ready. To display live approved folios from Supabase, configure your environment credentials in <code className="meta-mono bg-paper px-1.5 py-0.5 border border-ink/20">.env.local</code>.
+                  </p>
                 </div>
+              ) : result.error ? (
+                <div className="p-6 sm:p-8 border border-oxblood/30 bg-card text-left space-y-3">
+                  <div className="flex items-center gap-2 text-oxblood meta-mono text-xs font-semibold">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>Unable to Retrieve Catalogue Folios</span>
+                  </div>
+                  <p className="text-xs sm:text-sm text-ash leading-relaxed max-w-lg">
+                    {result.error}
+                  </p>
+                  <div>
+                    <Link
+                      href="/documents"
+                      className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                    >
+                      Retry Query
+                    </Link>
+                  </div>
+                </div>
+              ) : result.data.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
+                  {result.data.map((doc, idx) => (
+                    <DocumentCard
+                      key={doc.id}
+                      document={doc}
+                      index={(page - 1) * result.limit + idx + 1}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="p-8 sm:p-12 text-center border border-ink/15 bg-card space-y-3.5">
+                  <div className="w-9 h-9 border border-ink/15 bg-bone flex items-center justify-center mx-auto text-ash">
+                    <BookOpen className="w-4 h-4 text-oxblood" />
+                  </div>
+                  <div className="space-y-1">
+                    <h2 className="font-display text-xl text-ink font-medium">
+                      No matching folios found
+                    </h2>
+                    <p className="text-xs sm:text-sm text-ash max-w-md mx-auto leading-relaxed">
+                      No academic materials currently match your search criteria. Try adjusting your keywords, resetting filters, or contribute the first document for this subject.
+                    </p>
+                  </div>
+                  <div className="pt-2 flex flex-wrap items-center justify-center gap-2.5">
+                    <Link
+                      href="/documents"
+                      className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                    >
+                      Reset Filters
+                    </Link>
+                    <Link
+                      href="/upload"
+                      className={buttonVariants({ variant: 'primary', size: 'sm', className: 'gap-1.5' })}
+                    >
+                      <span>Contribute Notes</span>
+                      <ArrowUpRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
+                </div>
+              )}
 
-                {result.page < result.totalPages ? (
-                  <Link
-                    href={buildPageUrl(result.page + 1)}
-                    className={buttonVariants({ variant: 'outline', size: 'sm', className: 'gap-1.5 meta-mono' })}
-                  >
-                    <span>Next</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </Link>
-                ) : (
-                  <span className="opacity-0 pointer-events-none">Next</span>
-                )}
-              </nav>
-            )}
-          </main>
-        </div>
-      </Container>
+              {/* Pagination Controls */}
+              {result.totalPages > 1 && (
+                <nav aria-label="Pagination Navigation" className="pt-6 border-t border-ink/15 flex items-center justify-between">
+                  {result.page > 1 ? (
+                    <Link
+                      href={buildPageUrl(result.page - 1)}
+                      className={buttonVariants({ variant: 'outline', size: 'sm', className: 'gap-1.5 meta-mono' })}
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                      <span>Previous</span>
+                    </Link>
+                  ) : (
+                    <span className="opacity-0 pointer-events-none">Prev</span>
+                  )}
+
+                  <div className="flex items-center gap-1.5">
+                    {Array.from({ length: result.totalPages }, (_, i) => i + 1).map((p) => {
+                      if (
+                        p === 1 ||
+                        p === result.totalPages ||
+                        (p >= result.page - 1 && p <= result.page + 1)
+                      ) {
+                        return (
+                          <Link
+                            key={p}
+                            href={buildPageUrl(p)}
+                            className={`w-8 h-8 flex items-center justify-center meta-mono text-xs transition-colors border ${
+                              p === result.page
+                                ? 'bg-ink text-paper border-ink font-semibold'
+                                : 'border-ink/20 text-ink hover:border-ink hover:bg-bone/40'
+                            }`}
+                          >
+                            {p}
+                          </Link>
+                        );
+                      }
+                      return null;
+                    })}
+                  </div>
+
+                  {result.page < result.totalPages ? (
+                    <Link
+                      href={buildPageUrl(result.page + 1)}
+                      className={buttonVariants({ variant: 'outline', size: 'sm', className: 'gap-1.5 meta-mono' })}
+                    >
+                      <span>Next</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  ) : (
+                    <span className="opacity-0 pointer-events-none">Next</span>
+                  )}
+                </nav>
+              )}
+            </main>
+          </div>
+        </Container>
+      </div>
     </div>
   );
 }
