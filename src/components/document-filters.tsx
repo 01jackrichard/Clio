@@ -9,6 +9,7 @@ import {
   SEMESTERS,
   MATERIAL_TYPES,
   UNITS,
+  REGULATIONS,
 } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
@@ -19,6 +20,7 @@ export function DocumentFilters() {
 
   const [q, setQ] = useState(searchParams.get('q') || '');
   const [department, setDepartment] = useState(searchParams.get('department') || '');
+  const [regulation, setRegulation] = useState(searchParams.get('regulation') || '');
   const [academicYear, setAcademicYear] = useState(searchParams.get('academic_year') || '');
   const [semester, setSemester] = useState(searchParams.get('semester') || '');
   const [subject, setSubject] = useState(searchParams.get('subject') || '');
@@ -32,6 +34,7 @@ export function DocumentFilters() {
 
     const activeQ = overrides?.q !== undefined ? overrides.q : q;
     const activeDept = overrides?.department !== undefined ? overrides.department : department;
+    const activeReg = overrides?.regulation !== undefined ? overrides.regulation : regulation;
     const activeYear = overrides?.academic_year !== undefined ? overrides.academic_year : academicYear;
     const activeSem = overrides?.semester !== undefined ? overrides.semester : semester;
     const activeSub = overrides?.subject !== undefined ? overrides.subject : subject;
@@ -41,6 +44,7 @@ export function DocumentFilters() {
 
     if (activeQ.trim()) params.set('q', activeQ.trim());
     if (activeDept) params.set('department', activeDept);
+    if (activeReg) params.set('regulation', activeReg);
     if (activeYear) params.set('academic_year', activeYear);
     if (activeSem) params.set('semester', activeSem);
     if (activeSub.trim()) params.set('subject', activeSub.trim());
@@ -55,6 +59,7 @@ export function DocumentFilters() {
   const handleReset = () => {
     setQ('');
     setDepartment('');
+    setRegulation('');
     setAcademicYear('');
     setSemester('');
     setSubject('');
@@ -70,7 +75,7 @@ export function DocumentFilters() {
   };
 
   const hasActiveFilters = Boolean(
-    q || department || academicYear || semester || subject || unit || materialType || (sort && sort !== 'newest')
+    q || department || regulation || academicYear || semester || subject || unit || materialType || (sort && sort !== 'newest')
   );
 
   return (
@@ -162,6 +167,23 @@ export function DocumentFilters() {
             {DEPARTMENTS.map((d) => (
               <option key={d} value={d}>
                 {d}
+              </option>
+            ))}
+          </Select>
+
+          {/* Curriculum Regulation */}
+          <Select
+            label="Curriculum Regulation"
+            value={regulation}
+            onChange={(e) => {
+              setRegulation(e.target.value);
+              applyFilters({ regulation: e.target.value });
+            }}
+          >
+            <option value="">All Regulations</option>
+            {REGULATIONS.map((r) => (
+              <option key={r} value={r}>
+                Regulation {r}
               </option>
             ))}
           </Select>

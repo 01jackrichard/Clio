@@ -39,7 +39,6 @@ export default async function MySubmissionsPage({ searchParams }: MySubmissionsP
       {/* Editorial Page Header */}
       <PageHeader
         eyebrow="Academic Repository"
-        eyebrowNumber="FOLIO 04"
         title="My Submissions"
         description="Review moderation status, track peer review notes, and manage your contributed academic materials."
         action={

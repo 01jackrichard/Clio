@@ -81,7 +81,6 @@ export default async function ModerationQueuePage() {
       {/* Header */}
       <PageHeader
         eyebrow="Quality Assurance"
-        eyebrowNumber="FOLIO 01"
         title="Moderation Queue"
         description="Review submitted student materials, inspect syllabus alignment, preview scans, and approve or reject submissions."
         action={

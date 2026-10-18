@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { extractDriveFileId, getDriveEmbedUrl } from '@/lib/drive/urls';
+import { verifyUnlockToken } from '@/lib/security/password-service';
 
 export async function GET(
   request: NextRequest,
@@ -26,7 +27,7 @@ export async function GET(
     // 2. Fetch document record
     const { data: document, error: docError } = await supabase
       .from('documents')
-      .select('id, title, original_filename, file_key, drive_file_id, submitted_drive_url, status, uploader_id, storage_provider')
+      .select('id, title, original_filename, file_key, drive_file_id, submitted_drive_url, status, uploader_id, storage_provider, visibility, password_hash')
       .eq('id', id)
       .single();
 
@@ -38,9 +39,10 @@ export async function GET(
     }
 
     // 3. Authorization check
-    let isAuthorized = document.status === 'approved' || document.uploader_id === user.id;
+    const isOwner = document.uploader_id === user.id;
+    let isAdmin = false;
 
-    if (!isAuthorized) {
+    if (!isOwner) {
       const { data: profile } = await supabase
         .from('profiles')
         .select('role')
@@ -48,9 +50,11 @@ export async function GET(
         .single();
 
       if (profile?.role === 'admin') {
-        isAuthorized = true;
+        isAdmin = true;
       }
     }
+
+    const isAuthorized = document.status === 'approved' || isOwner || isAdmin;
 
     if (!isAuthorized) {
       return NextResponse.json(
@@ -59,11 +63,29 @@ export async function GET(
       );
     }
 
-    // 4. Resolve Google Drive File ID
+    // 4. Private password check
+    const isPrivate = document.visibility === 'private';
+    if (isPrivate && !isOwner && !isAdmin) {
+      const cookieToken = request.cookies.get(`clio_unlock_${id}`)?.value;
+      const headerToken = request.headers.get('x-clio-unlock-token');
+      const token = cookieToken || headerToken;
+
+      if (!verifyUnlockToken(token, id)) {
+        return NextResponse.json(
+          {
+            error: 'This document is private. Password required.',
+            requiresPassword: true,
+            isPrivate: true,
+          },
+          { status: 403 }
+        );
+      }
+    }
+
+    // 5. Resolve Google Drive File ID
     let driveId: string | null = null;
 
     if (document.status === 'approved') {
-      // Published library documents MUST be backed by canonical central repository Drive files
       if (document.storage_provider !== 'google_drive' || !document.drive_file_id) {
         return NextResponse.json(
           {
@@ -75,7 +97,6 @@ export async function GET(
       }
       driveId = document.drive_file_id;
     } else {
-      // Pending review submissions: authorized uploader or admin can preview the submission reference link
       if (document.submitted_drive_url) {
         driveId = extractDriveFileId(document.submitted_drive_url);
       } else if (document.drive_file_id) {
@@ -90,13 +111,16 @@ export async function GET(
       );
     }
 
-
-    const previewUrl = getDriveEmbedUrl(driveId);
+    // For private documents, use the secure streaming proxy route
+    const previewUrl = isPrivate
+      ? `/api/documents/${id}/raw`
+      : getDriveEmbedUrl(driveId);
 
     return NextResponse.json({
       success: true,
       previewUrl,
-      driveFileId: driveId,
+      driveFileId: isPrivate ? null : driveId,
+      isPrivate,
       title: document.title,
       storageProvider: 'google_drive',
     });
@@ -109,4 +133,3 @@ export async function GET(
     );
   }
 }
-

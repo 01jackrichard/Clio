@@ -1,6 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { cookies } from 'next/headers';
 import {
   ArrowLeft,
   Calendar,
@@ -9,12 +10,17 @@ import {
   User,
   ShieldAlert,
   FileText,
+  Lock,
+  BookOpen,
 } from 'lucide-react';
+import { createClient } from '@/lib/supabase/server';
 import { getDocumentById } from '@/lib/services/document-service';
 import { formatDate, getMaterialTypeBadge } from '@/lib/utils';
 import { PdfViewer } from '@/components/pdf-viewer';
 import { DocumentActions } from './document-actions';
 import { Badge, Container } from '@/components/ui';
+import { PasswordUnlockCard } from '@/components/password-unlock-card';
+import { verifyUnlockToken } from '@/lib/security/password-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,6 +38,37 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
 
   const materialBadge = getMaterialTypeBadge(document.material_type);
 
+  // Check privacy access grant
+  let isUnlocked = true;
+  if (document.visibility === 'private') {
+    isUnlocked = false;
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user && user.id === document.uploader_id) {
+      isUnlocked = true;
+    } else {
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+        if (profile?.role === 'admin') isUnlocked = true;
+      }
+
+      if (!isUnlocked) {
+        const cookieStore = await cookies();
+        const unlockCookie = cookieStore.get(`clio_unlock_${document.id}`)?.value;
+        if (unlockCookie && verifyUnlockToken(unlockCookie, document.id)) {
+          isUnlocked = true;
+        }
+      }
+    }
+  }
+
   return (
     <div className="bg-paper min-h-screen py-8 sm:py-12">
       <Container className="space-y-8">
@@ -45,12 +82,19 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
             <span>Return to Library Catalogue</span>
           </Link>
 
-          <span className="meta-mono text-oxblood hidden sm:inline">
-            Archival Folio Nº {document.id.slice(0, 8)}
-          </span>
+          <div className="flex items-center gap-3">
+            {document.visibility === 'private' && (
+              <Badge variant="oxblood" size="sm" dot>
+                Protected Folio
+              </Badge>
+            )}
+            <span className="meta-mono text-oxblood hidden sm:inline">
+              Archival Folio Nº {document.id.slice(0, 8)}
+            </span>
+          </div>
         </div>
 
-        {/* Main Document Folio Card */}
+        {/* Main Document Folio Header Card */}
         <article className="bg-card border border-ink/15 p-6 sm:p-10 space-y-7">
           <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
             <div className="space-y-4 flex-1">
@@ -59,9 +103,19 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
                 <Badge variant="oxblood" size="md">
                   {materialBadge.label}
                 </Badge>
+                {document.subject_code && (
+                  <span className="px-2 py-0.5 font-mono text-xs font-semibold bg-bone text-ink border border-ink/20">
+                    {document.subject_code}
+                  </span>
+                )}
                 <Badge variant="neutral" size="md">
                   {document.subject}
                 </Badge>
+                {document.regulation && (
+                  <Badge variant="paper" size="md">
+                    Regulation {document.regulation}
+                  </Badge>
+                )}
                 {document.unit && (
                   <Badge variant="paper" size="md">
                     {document.unit}
@@ -98,16 +152,36 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
                   <span>Shared by {document.uploader_name || 'Scholar Contributor'}</span>
                 </div>
               </div>
+
+              {/* Collection reference if linked */}
+              {document.collection_id && (
+                <div className="pt-2">
+                  <Link
+                    href={`/collections/${document.collection_id}`}
+                    className="inline-flex items-center gap-1.5 text-xs meta-mono text-oxblood hover:underline"
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    <span>View associated Course Pack / Collection</span>
+                  </Link>
+                </div>
+              )}
             </div>
 
-            {/* Actions: Download, Bookmark, Report */}
-            <DocumentActions
-              documentId={document.id}
-              documentTitle={document.title}
-              originalFilename={document.original_filename}
-              fileSize={document.file_size}
-              downloadCount={document.download_count}
-            />
+            {/* Actions: Download, Bookmark, Report (Only shown when unlocked) */}
+            {isUnlocked ? (
+              <DocumentActions
+                documentId={document.id}
+                documentTitle={document.title}
+                originalFilename={document.original_filename}
+                fileSize={document.file_size}
+                downloadCount={document.download_count}
+              />
+            ) : (
+              <div className="flex items-center gap-2 px-3 py-2 bg-bone/60 border border-ink/20 meta-mono text-xs text-ash">
+                <Lock className="w-3.5 h-3.5 text-oxblood" />
+                <span>Actions Locked</span>
+              </div>
+            )}
           </div>
 
           {/* Description & Abstract */}
@@ -135,24 +209,36 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
           )}
         </article>
 
-        {/* PDF Interactive Reader Container */}
-        <section className="space-y-3" aria-label="Academic Document Reader">
-          <div className="flex items-center justify-between pb-1">
-            <h2 className="font-display text-xl text-ink font-medium flex items-center gap-2">
-              <FileText className="w-4 h-4 text-oxblood" />
-              <span>Interactive Folio Viewer</span>
-            </h2>
-            <span className="meta-mono text-ash text-xs hidden sm:inline">
-              Google Drive Embedded Engine · In-App Reading
-            </span>
-          </div>
+        {/* PDF Reader or Password Unlock Card */}
+        {isUnlocked ? (
+          <section className="space-y-3" aria-label="Academic Document Reader">
+            <div className="flex items-center justify-between pb-1">
+              <h2 className="font-display text-xl text-ink font-medium flex items-center gap-2">
+                <FileText className="w-4 h-4 text-oxblood" />
+                <span>Interactive Folio Viewer</span>
+              </h2>
+              <span className="meta-mono text-ash text-xs hidden sm:inline">
+                {document.visibility === 'private'
+                  ? 'Clio Secure Streaming Proxy · Authenticated Session'
+                  : 'Google Drive Embedded Engine · In-App Reading'}
+              </span>
+            </div>
 
-          <PdfViewer
-            documentId={document.id}
-            documentTitle={document.title}
-            driveFileId={document.drive_file_id}
-          />
-        </section>
+            <PdfViewer
+              documentId={document.id}
+              documentTitle={document.title}
+              driveFileId={document.drive_file_id}
+            />
+          </section>
+        ) : (
+          <section className="py-8" aria-label="Password Unlock Desk">
+            <PasswordUnlockCard
+              resourceId={document.id}
+              resourceTitle={document.title}
+              resourceType="document"
+            />
+          </section>
+        )}
 
         {/* Academic Fair Use Notice */}
         <aside className="p-5 bg-card border border-ink/15 text-xs text-ash flex items-start gap-3.5">

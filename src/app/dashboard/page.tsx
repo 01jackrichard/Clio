@@ -102,7 +102,6 @@ export default async function DashboardPage() {
       {/* Editorial Header */}
       <PageHeader
         eyebrow="Academic Workspace"
-        eyebrowNumber="FOLIO 05"
         title={`Welcome back, ${studentName}`}
         description={
           profile?.department && profile?.academic_year

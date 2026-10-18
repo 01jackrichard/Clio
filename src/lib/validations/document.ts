@@ -280,3 +280,136 @@ export const googleFormWebhookPayloadSchema = z.object({
 });
 
 export type GoogleFormWebhookPayload = z.infer<typeof googleFormWebhookPayloadSchema>;
+
+/**
+ * Direct file upload metadata schema with Anna University subject & privacy controls
+ */
+export const directUploadSchema = z
+  .object({
+    title: z
+      .string()
+      .trim()
+      .min(3, 'Title must be at least 3 characters')
+      .max(120, 'Title cannot exceed 120 characters'),
+    description: z
+      .string()
+      .trim()
+      .max(1000, 'Description cannot exceed 1000 characters')
+      .optional()
+      .or(z.literal('')),
+    department: z.enum(DEPARTMENTS, {
+      message: 'Please select a valid academic department',
+    }),
+    academic_year: z.enum(ACADEMIC_YEARS, {
+      message: 'Please select a valid academic year',
+    }),
+    semester: z.enum(SEMESTERS, {
+      message: 'Please select a valid semester',
+    }),
+    subject: z
+      .string()
+      .trim()
+      .min(2, 'Subject name must be at least 2 characters')
+      .max(100, 'Subject name cannot exceed 100 characters'),
+    subject_code: z
+      .string()
+      .trim()
+      .max(20, 'Subject code cannot exceed 20 characters')
+      .optional()
+      .or(z.literal('')),
+    regulation: z
+      .string()
+      .trim()
+      .max(30)
+      .optional()
+      .default('2021'),
+    is_verified_subject: z.boolean().optional().default(true),
+    unit: z
+      .enum(UNITS)
+      .optional()
+      .or(z.literal(''))
+      .nullable(),
+    material_type: z.enum(materialTypeValues as [string, ...string[]], {
+      message: 'Please select a valid material type',
+    }),
+    tags: z
+      .array(z.string().trim().min(1).max(30))
+      .max(8, 'Maximum 8 tags allowed')
+      .default([]),
+    visibility: z.enum(['public', 'private']).default('public'),
+    password: z
+      .string()
+      .min(6, 'Access password must be at least 6 characters')
+      .max(100, 'Password cannot exceed 100 characters')
+      .optional()
+      .or(z.literal('')),
+    collection_id: z.string().uuid('Invalid collection identifier').optional().or(z.literal('')),
+    declaration_accepted: z
+      .boolean()
+      .refine((val) => val === true, 'You must accept the academic honesty and sharing declaration'),
+  })
+  .superRefine((data, ctx) => {
+    if (data.visibility === 'private') {
+      if (!data.password || data.password.trim().length < 6) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'An access password (minimum 6 characters) is required for private documents',
+          path: ['password'],
+        });
+      }
+    }
+  });
+
+export type DirectUploadInput = z.infer<typeof directUploadSchema>;
+
+/**
+ * Academic Collection / Resource Pack Creation Schema
+ */
+export const createCollectionSchema = z
+  .object({
+    title: z
+      .string()
+      .trim()
+      .min(3, 'Collection title must be at least 3 characters')
+      .max(120, 'Collection title cannot exceed 120 characters'),
+    description: z
+      .string()
+      .trim()
+      .max(1000, 'Description cannot exceed 1000 characters')
+      .optional()
+      .or(z.literal('')),
+    department: z.enum(DEPARTMENTS).optional().nullable(),
+    regulation: z.string().trim().max(30).optional().default('2021'),
+    academic_year: z.enum(ACADEMIC_YEARS).optional().nullable(),
+    semester: z.enum(SEMESTERS).optional().nullable(),
+    visibility: z.enum(['public', 'private']).default('public'),
+    password: z
+      .string()
+      .min(6, 'Access password must be at least 6 characters')
+      .max(100, 'Password cannot exceed 100 characters')
+      .optional()
+      .or(z.literal('')),
+  })
+  .superRefine((data, ctx) => {
+    if (data.visibility === 'private') {
+      if (!data.password || data.password.trim().length < 6) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'An access password (minimum 6 characters) is required for private collections',
+          path: ['password'],
+        });
+      }
+    }
+  });
+
+export type CreateCollectionInput = z.infer<typeof createCollectionSchema>;
+
+/**
+ * Resource Password Unlock Schema
+ */
+export const unlockResourceSchema = z.object({
+  password: z.string().min(1, 'Password is required to unlock this resource'),
+});
+
+export type UnlockResourceInput = z.infer<typeof unlockResourceSchema>;
+

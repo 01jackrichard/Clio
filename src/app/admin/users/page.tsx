@@ -58,7 +58,6 @@ export default async function AdminUsersPage() {
       {/* Page Header */}
       <PageHeader
         eyebrow="Directory & Governance"
-        eyebrowNumber="FOLIO 04"
         title="Scholars & Access Directory"
         description="Inspect registered academic accounts, oversee institutional contribution standing, and delegate governance privileges."
       />

@@ -81,3 +81,10 @@ export type UserRole = (typeof USER_ROLES)[number];
 
 export const USER_STATUSES = ['active', 'suspended'] as const;
 export type UserStatus = (typeof USER_STATUSES)[number];
+
+export const REGULATIONS = ['2021', '2017', 'Other / Autonomous'] as const;
+export type Regulation = (typeof REGULATIONS)[number];
+
+export const VISIBILITY_OPTIONS = ['public', 'private'] as const;
+export type Visibility = (typeof VISIBILITY_OPTIONS)[number];
+

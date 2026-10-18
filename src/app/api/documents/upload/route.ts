@@ -10,17 +10,15 @@ import {
   getGoogleDriveConfig,
 } from '@/lib/drive/google-drive-service';
 import {
-  DEPARTMENTS,
-  ACADEMIC_YEARS,
-  SEMESTERS,
-  MATERIAL_TYPES,
-  UNITS,
   Department,
   AcademicYear,
   Semester,
   MaterialTypeValue,
   Unit,
 } from '@/lib/constants';
+
+import { hashAccessPassword } from '@/lib/security/password-service';
+import { directUploadSchema } from '@/lib/validations/document';
 
 export const dynamic = 'force-dynamic';
 
@@ -100,8 +98,14 @@ export async function POST(request: NextRequest) {
     const academicYear = (formData.get('academic_year') as string || '').trim() as AcademicYear;
     const semester = (formData.get('semester') as string || '').trim() as Semester;
     const subject = (formData.get('subject') as string || '').trim();
+    const subjectCode = (formData.get('subject_code') as string || '').trim();
+    const regulation = (formData.get('regulation') as string || '2021').trim();
+    const isVerifiedSubject = formData.get('is_verified_subject') !== 'false';
     const unit = ((formData.get('unit') as string || '').trim() || null) as Unit | null;
     const materialType = (formData.get('material_type') as string || '').trim() as MaterialTypeValue;
+    const visibility = (formData.get('visibility') as string || 'public').trim() as 'public' | 'private';
+    const password = (formData.get('password') as string || '').trim();
+    const collectionId = (formData.get('collection_id') as string || '').trim();
     const declarationAccepted = formData.get('declaration_accepted') === 'true' || formData.get('declaration_accepted') === 'on';
 
     let tags: string[] = [];
@@ -118,62 +122,35 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 5. Validate academic metadata
-    if (!title || title.length < 3 || title.length > 120) {
+    // 5. Validate academic metadata via directUploadSchema
+    const validationResult = directUploadSchema.safeParse({
+      title,
+      description,
+      department,
+      academic_year: academicYear,
+      semester,
+      subject,
+      subject_code: subjectCode || undefined,
+      regulation,
+      is_verified_subject: isVerifiedSubject,
+      unit: unit || null,
+      material_type: materialType,
+      tags,
+      visibility,
+      password: password || undefined,
+      collection_id: collectionId || undefined,
+      declaration_accepted: declarationAccepted,
+    });
+
+    if (!validationResult.success) {
+      const firstIssue = validationResult.error.issues[0];
       return NextResponse.json(
-        { error: 'Document title must be between 3 and 120 characters.' },
+        { error: firstIssue ? firstIssue.message : 'Invalid document metadata' },
         { status: 400 }
       );
     }
 
-    if (!subject || subject.length < 2 || subject.length > 80) {
-      return NextResponse.json(
-        { error: 'Subject name/code must be between 2 and 80 characters.' },
-        { status: 400 }
-      );
-    }
-
-    if (!DEPARTMENTS.includes(department)) {
-      return NextResponse.json(
-        { error: 'Please select a valid academic department.' },
-        { status: 400 }
-      );
-    }
-
-    if (!ACADEMIC_YEARS.includes(academicYear)) {
-      return NextResponse.json(
-        { error: 'Please select a valid academic year.' },
-        { status: 400 }
-      );
-    }
-
-    if (!SEMESTERS.includes(semester)) {
-      return NextResponse.json(
-        { error: 'Please select a valid semester.' },
-        { status: 400 }
-      );
-    }
-
-    if (!MATERIAL_TYPES.some((m) => m.value === materialType)) {
-      return NextResponse.json(
-        { error: 'Please select a valid material type.' },
-        { status: 400 }
-      );
-    }
-
-    if (unit && !UNITS.includes(unit)) {
-      return NextResponse.json(
-        { error: 'Please select a valid syllabus unit.' },
-        { status: 400 }
-      );
-    }
-
-    if (!declarationAccepted) {
-      return NextResponse.json(
-        { error: 'You must accept the academic honesty and sharing declaration to proceed.' },
-        { status: 400 }
-      );
-    }
+    const validatedData = validationResult.data;
 
     // 6. Validate file content and binary magic bytes
     const fileBuffer = Buffer.from(await file.arrayBuffer());
@@ -196,8 +173,8 @@ export async function POST(request: NextRequest) {
       .from('documents')
       .select('id, title, status')
       .eq('uploader_id', user.id)
-      .eq('title', title)
-      .eq('subject', subject)
+      .eq('title', validatedData.title)
+      .eq('subject', validatedData.subject)
       .maybeSingle();
 
     if (duplicate) {
@@ -234,29 +211,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 10. Apply public link reader permission ONLY to this file if enabled
+    // 10. Apply public link reader permission ONLY if document is public and public sharing is enabled
     const driveConfig = getGoogleDriveConfig();
-    if (driveConfig.enablePublicSharing) {
+    if (validatedData.visibility === 'public' && driveConfig.enablePublicSharing) {
       await setDriveFilePublicReader(driveUpload.fileId);
     }
 
-    // 11. Register and auto-publish document in Supabase
-    // Using admin client to ensure clean publication and bypass client-side RLS constraints on approved status
+    // 11. Hash password if private
+    let passwordHash: string | null = null;
+    if (validatedData.visibility === 'private' && validatedData.password) {
+      passwordHash = await hashAccessPassword(validatedData.password);
+    }
+
+    // 12. Register and auto-publish document in Supabase
     const adminClient = getAdminClient();
     const now = new Date().toISOString();
 
     const { data: newDoc, error: insertError } = await adminClient
       .from('documents')
       .insert({
-        title,
-        description: description || null,
-        department,
-        academic_year: academicYear,
-        semester,
-        subject,
-        unit: unit || null,
-        material_type: materialType,
-        tags: tags || [],
+        title: validatedData.title,
+        description: validatedData.description || null,
+        department: validatedData.department,
+        academic_year: validatedData.academic_year,
+        semester: validatedData.semester,
+        subject: validatedData.subject,
+        subject_code: validatedData.subject_code || null,
+        regulation: validatedData.regulation || '2021',
+        is_verified_subject: validatedData.is_verified_subject,
+        visibility: validatedData.visibility,
+        password_hash: passwordHash,
+        collection_id: validatedData.collection_id || null,
+        unit: validatedData.unit || null,
+        material_type: validatedData.material_type,
+        tags: validatedData.tags || [],
         original_filename: file.name,
         file_size: fileBuffer.length,
         mime_type: fileValidation.detectedMimeType!,
@@ -265,7 +253,9 @@ export async function POST(request: NextRequest) {
         drive_file_id: driveUpload.fileId,
         status: 'approved', // Auto-published for pilot
         approved_at: now,
-        review_notes: 'Automatically published via direct Google Drive upload',
+        review_notes: validatedData.visibility === 'private'
+          ? 'Published as private access document with password'
+          : 'Automatically published via direct Google Drive upload',
         download_count: 0,
       })
       .select()

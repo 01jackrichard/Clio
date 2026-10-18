@@ -53,7 +53,6 @@ export default async function AdminRegisterDocumentPage() {
       {/* Page Header */}
       <PageHeader
         eyebrow="Central Repository Workflow"
-        eyebrowNumber="FOLIO 05"
         title="Register Canonical Google Drive Folio"
         description="Index accredited lecture notes, syllabus folios, and past papers directly from institutional Google Drive storage without secondary re-uploads."
       />

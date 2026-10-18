@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { extractDriveFileId, getDriveDownloadUrl, getDriveViewUrl } from '@/lib/drive/urls';
+import { verifyUnlockToken } from '@/lib/security/password-service';
 
 export async function GET(
   request: NextRequest,
@@ -23,10 +24,10 @@ export async function GET(
       );
     }
 
-    // 2. Fetch document record from database (trusted metadata source)
+    // 2. Fetch document record from database
     const { data: document, error: docError } = await supabase
       .from('documents')
-      .select('id, title, original_filename, file_key, drive_file_id, submitted_drive_url, status, uploader_id, storage_provider')
+      .select('id, title, original_filename, file_key, drive_file_id, submitted_drive_url, status, uploader_id, storage_provider, visibility, password_hash')
       .eq('id', id)
       .single();
 
@@ -37,11 +38,11 @@ export async function GET(
       );
     }
 
-    // 3. Authorization check: document must be approved OR user is uploader or admin
-    let isAuthorized = document.status === 'approved' || document.uploader_id === user.id;
+    // 3. Authorization check
+    const isOwner = document.uploader_id === user.id;
+    let isAdmin = false;
 
-    if (!isAuthorized) {
-      // Check if user is admin
+    if (!isOwner) {
       const { data: profile } = await supabase
         .from('profiles')
         .select('role')
@@ -49,9 +50,11 @@ export async function GET(
         .single();
 
       if (profile?.role === 'admin') {
-        isAuthorized = true;
+        isAdmin = true;
       }
     }
+
+    const isAuthorized = document.status === 'approved' || isOwner || isAdmin;
 
     if (!isAuthorized) {
       return NextResponse.json(
@@ -60,7 +63,25 @@ export async function GET(
       );
     }
 
-    // 4. Resolve Google Drive download and view URLs
+    // 4. Privacy password check
+    const isPrivate = document.visibility === 'private';
+    if (isPrivate && !isOwner && !isAdmin) {
+      const cookieToken = request.cookies.get(`clio_unlock_${id}`)?.value;
+      const headerToken = request.headers.get('x-clio-unlock-token');
+      const token = cookieToken || headerToken;
+
+      if (!verifyUnlockToken(token, id)) {
+        return NextResponse.json(
+          {
+            error: 'This document is private. Password required to download.',
+            requiresPassword: true,
+          },
+          { status: 403 }
+        );
+      }
+    }
+
+    // 5. Resolve URLs
     let driveId: string | null = null;
 
     if (document.status === 'approved') {
@@ -89,11 +110,16 @@ export async function GET(
       );
     }
 
+    // For private files, direct to the secure server streaming route
+    const downloadUrl = isPrivate
+      ? `/api/documents/${id}/raw`
+      : getDriveDownloadUrl(driveId) || getDriveViewUrl(driveId)!;
 
-    const downloadUrl = getDriveDownloadUrl(driveId) || getDriveViewUrl(driveId)!;
-    const viewUrl = getDriveViewUrl(driveId)!;
+    const viewUrl = isPrivate
+      ? `/api/documents/${id}/raw`
+      : getDriveViewUrl(driveId)!;
 
-    // 5. Asynchronously record download log and atomic increment
+    // 6. Asynchronously record download log and atomic increment
     try {
       await Promise.allSettled([
         supabase.rpc('increment_document_download', { doc_id: document.id }),
@@ -107,7 +133,6 @@ export async function GET(
       console.warn('Non-fatal: failed to record download telemetry', logErr);
     }
 
-    // Check if redirect is requested via query param
     const searchParams = request.nextUrl.searchParams;
     if (searchParams.get('redirect') === 'true') {
       return NextResponse.redirect(downloadUrl);
@@ -117,6 +142,7 @@ export async function GET(
       success: true,
       downloadUrl,
       viewUrl,
+      isPrivate,
       filename: document.original_filename,
       storageProvider: 'google_drive',
     });
@@ -129,4 +155,3 @@ export async function GET(
     );
   }
 }
-

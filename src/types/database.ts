@@ -1,4 +1,16 @@
-import { Department, AcademicYear, Semester, MaterialTypeValue, Unit, DocumentStatus, UserRole, UserStatus, ReportReason } from '@/lib/constants';
+import {
+  Department,
+  AcademicYear,
+  Semester,
+  MaterialTypeValue,
+  Unit,
+  DocumentStatus,
+  UserRole,
+  UserStatus,
+  ReportReason,
+  Regulation,
+  Visibility,
+} from '@/lib/constants';
 
 export interface Profile {
   id: string; // references auth.users.id
@@ -14,6 +26,25 @@ export interface Profile {
   updated_at: string;
 }
 
+export interface CollectionRecord {
+  id: string;
+  title: string;
+  description?: string | null;
+  department?: Department | null;
+  regulation?: Regulation | string | null;
+  academic_year?: AcademicYear | null;
+  semester?: Semester | null;
+  visibility: Visibility;
+  password_hash?: string | null;
+  owner_id: string;
+  created_at: string;
+  updated_at: string;
+  // Joined/calculated fields
+  owner_name?: string | null;
+  documents?: DocumentRecord[];
+  document_count?: number;
+}
+
 export interface DocumentRecord {
   id: string;
   title: string;
@@ -22,6 +53,9 @@ export interface DocumentRecord {
   academic_year: AcademicYear;
   semester: Semester;
   subject: string;
+  subject_code?: string | null;
+  regulation?: Regulation | string | null;
+  is_verified_subject?: boolean;
   unit?: Unit | null;
   material_type: MaterialTypeValue;
   tags: string[];
@@ -35,6 +69,9 @@ export interface DocumentRecord {
   uploader_id: string;
   uploader_name?: string | null;
   status: DocumentStatus;
+  visibility?: Visibility; // 'public' | 'private'
+  password_hash?: string | null; // Salted password hash if visibility === 'private'
+  collection_id?: string | null; // Associated collection
   reviewer_id?: string | null;
   review_notes?: string | null;
   download_count: number;

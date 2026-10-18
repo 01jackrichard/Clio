@@ -99,7 +99,6 @@ export default async function AdminDashboardPage() {
       {/* Header */}
       <PageHeader
         eyebrow="Academic Governance Desk"
-        eyebrowNumber="FOLIO 00"
         title="Operations & Integrity Console"
         description={`Platform moderation, storage governance, and quality assurance for ${config.app.collegeName}.`}
         action={

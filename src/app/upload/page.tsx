@@ -12,6 +12,11 @@ import {
   ArrowUpRight,
   ShieldCheck,
   Plus,
+  Lock,
+  Globe,
+  Layers,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { config } from '@/lib/config';
 import {
@@ -20,6 +25,7 @@ import {
   SEMESTERS,
   MATERIAL_TYPES,
   UNITS,
+  REGULATIONS,
   Department,
   AcademicYear,
   Semester,
@@ -37,8 +43,12 @@ import {
   CardContent,
   Container,
 } from '@/components/ui';
+import { SubjectAutocomplete } from '@/components/subject-autocomplete';
 
 export default function UploadPage() {
+  // Mode selection: 'individual' vs 'collection'
+  const [uploadMode, setUploadMode] = useState<'individual' | 'collection'>('individual');
+
   // File selection state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -51,20 +61,58 @@ export default function UploadPage() {
   const [academicYear, setAcademicYear] = useState<AcademicYear>(ACADEMIC_YEARS[0]);
   const [semester, setSemester] = useState<Semester>(SEMESTERS[0]);
   const [subject, setSubject] = useState('');
+  const [subjectCode, setSubjectCode] = useState('');
+  const [regulation, setRegulation] = useState<string>('2021');
+  const [isVerifiedSubject, setIsVerifiedSubject] = useState(true);
   const [unit, setUnit] = useState<Unit | ''>('');
   const [materialType, setMaterialType] = useState<MaterialTypeValue>(MATERIAL_TYPES[0].value);
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [declarationAccepted, setDeclarationAccepted] = useState(false);
 
+  // Visibility & Security State
+  const [visibility, setVisibility] = useState<'public' | 'private'>('public');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
+  // Collection Pack state
+  const [collectionAction, setCollectionAction] = useState<'new' | 'existing'>('new');
+  const [collectionTitle, setCollectionTitle] = useState('');
+  const [collectionDescription, setCollectionDescription] = useState('');
+  const [existingCollections, setExistingCollections] = useState<Array<{ id: string; title: string; visibility: string }>>([]);
+  const [selectedCollectionId, setSelectedCollectionId] = useState('');
+
   // Submission state
   const [submitting, setSubmitting] = useState(false);
   const [submitStage, setSubmitStage] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [completedDoc, setCompletedDoc] = useState<{
     id: string;
     title: string;
+    visibility: string;
+    collectionId?: string;
   } | null>(null);
+
+  // Fetch user's existing collections when in collection mode
+  useEffect(() => {
+    if (uploadMode !== 'collection') return;
+    async function loadCollections() {
+      try {
+        const res = await fetch('/api/collections?mine=true');
+        if (res.ok) {
+          const data = await res.json();
+          setExistingCollections(data.collections || []);
+          if (data.collections?.length > 0 && !selectedCollectionId) {
+            setSelectedCollectionId(data.collections[0].id);
+          }
+        }
+      } catch {
+        // Silently continue
+      }
+    }
+    loadCollections();
+  }, [uploadMode, selectedCollectionId]);
 
   // Staged progress messaging
   const stagedMessages = [
@@ -138,6 +186,12 @@ export default function UploadPage() {
     setTags(tags.filter((_, i) => i !== index));
   };
 
+  const handleCopyLink = (url: string) => {
+    navigator.clipboard.writeText(url);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (submitting) return;
@@ -145,6 +199,22 @@ export default function UploadPage() {
     if (!selectedFile) {
       setError('Please select a PDF, DOC, or DOCX document to contribute.');
       return;
+    }
+
+    if (!subject.trim()) {
+      setError('Please provide or search for a subject name / Anna University course code.');
+      return;
+    }
+
+    if (visibility === 'private') {
+      if (!password || password.length < 6) {
+        setError('Please provide an access password of at least 6 characters for private resources.');
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError('The access passwords do not match. Please verify your entry.');
+        return;
+      }
     }
 
     if (!declarationAccepted) {
@@ -157,6 +227,38 @@ export default function UploadPage() {
     setError(null);
 
     try {
+      let targetCollectionId = selectedCollectionId;
+
+      // If in collection mode and creating a new collection first
+      if (uploadMode === 'collection' && collectionAction === 'new') {
+        if (!collectionTitle.trim()) {
+          throw new Error('Please specify a title for the new course pack collection.');
+        }
+
+        const colRes = await fetch('/api/collections', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: collectionTitle.trim(),
+            description: collectionDescription.trim() || undefined,
+            department: department || undefined,
+            regulation: regulation || '2021',
+            academic_year: academicYear || undefined,
+            semester: semester || undefined,
+            visibility,
+            password: visibility === 'private' ? password : undefined,
+          }),
+        });
+
+        const colData = await colRes.json();
+        if (!colRes.ok) {
+          throw new Error(colData.error || 'Failed to create collection pack');
+        }
+
+        targetCollectionId = colData.collection.id;
+      }
+
+      // Upload the document
       const formData = new FormData();
       formData.append('file', selectedFile);
       formData.append('title', title.trim());
@@ -165,9 +267,19 @@ export default function UploadPage() {
       formData.append('academic_year', academicYear);
       formData.append('semester', semester);
       formData.append('subject', subject.trim());
+      if (subjectCode.trim()) formData.append('subject_code', subjectCode.trim());
+      formData.append('regulation', regulation);
+      formData.append('is_verified_subject', isVerifiedSubject ? 'true' : 'false');
       if (unit) formData.append('unit', unit);
       formData.append('material_type', materialType);
       formData.append('tags', JSON.stringify(tags));
+      formData.append('visibility', visibility);
+      if (visibility === 'private') {
+        formData.append('password', password);
+      }
+      if (uploadMode === 'collection' && targetCollectionId) {
+        formData.append('collection_id', targetCollectionId);
+      }
       formData.append('declaration_accepted', 'true');
 
       const res = await fetch('/api/documents/upload', {
@@ -184,6 +296,8 @@ export default function UploadPage() {
       setCompletedDoc({
         id: data.document.id,
         title: data.document.title,
+        visibility: visibility,
+        collectionId: uploadMode === 'collection' ? targetCollectionId : undefined,
       });
     } catch (err: unknown) {
       setError(
@@ -197,7 +311,7 @@ export default function UploadPage() {
   };
 
   return (
-    <div className="bg-paper min-h-screen py-10 sm:py-16">
+    <div className="bg-paper min-h-screen py-8 sm:py-14">
       <Container className="max-w-3xl space-y-8">
         {/* Editorial Heading */}
         <div className="space-y-3 pb-6 border-b border-ink/15">
@@ -208,6 +322,9 @@ export default function UploadPage() {
             <Badge variant="neutral" size="sm">
               PDF, DOC, DOCX · Max 50 MB
             </Badge>
+            <Badge variant="neutral" size="sm">
+              Anna University Syllabus · CBCS
+            </Badge>
           </div>
 
           <h1 className="font-display text-3xl sm:text-4xl text-ink font-medium tracking-tight leading-tight">
@@ -215,11 +332,40 @@ export default function UploadPage() {
           </h1>
 
           <p className="text-xs sm:text-sm text-ash leading-relaxed max-w-2xl">
-            Deposit lecture notes, previous-year question papers, or laboratory manuals for{' '}
-            <strong className="text-ink font-medium">{config.app.collegeName}</strong>. Submissions are
-            stored directly in the central institutional Google Drive repository and made searchable across
-            the student community.
+            Deposit lecture notes, question banks, or complete course packs for{' '}
+            <strong className="text-ink font-medium">{config.app.collegeName}</strong>. Documents are
+            preserved in the institutional Google Drive repository with optional password-protected group sharing.
           </p>
+
+          {/* Mode Switcher Tabs */}
+          {!completedDoc && (
+            <div className="pt-2 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setUploadMode('individual')}
+                className={`inline-flex items-center gap-2 px-4 py-2 text-xs font-medium border transition-colors cursor-pointer ${
+                  uploadMode === 'individual'
+                    ? 'border-ink bg-ink text-paper'
+                    : 'border-ink/20 bg-card text-ink hover:border-ink/50'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Individual Document Folio</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setUploadMode('collection')}
+                className={`inline-flex items-center gap-2 px-4 py-2 text-xs font-medium border transition-colors cursor-pointer ${
+                  uploadMode === 'collection'
+                    ? 'border-ink bg-ink text-paper'
+                    : 'border-ink/20 bg-card text-ink hover:border-ink/50'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>Curated Course Pack / Collection</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {completedDoc ? (
@@ -231,16 +377,25 @@ export default function UploadPage() {
 
               <div className="space-y-2 max-w-md mx-auto">
                 <div className="flex items-center justify-center gap-2 mb-1">
-                  <Badge variant="oxblood" size="sm" dot>
-                    Published to Library
+                  <Badge
+                    variant={completedDoc.visibility === 'private' ? 'oxblood' : 'neutral'}
+                    size="sm"
+                    dot
+                  >
+                    {completedDoc.visibility === 'private' ? 'Protected Access' : 'Published to Catalogue'}
                   </Badge>
                 </div>
                 <h2 className="font-display text-2xl text-ink font-medium tracking-tight">
                   Folio Preserved Successfully
                 </h2>
                 <p className="text-xs sm:text-sm text-ash leading-relaxed">
-                  <strong className="text-ink font-medium">{completedDoc.title}</strong> has been stored
-                  in Google Drive and registered in Clio’s academic catalogue.
+                  <strong className="text-ink font-medium">{completedDoc.title}</strong> has been secured
+                  and registered in Clio’s academic catalogue.
+                  {completedDoc.visibility === 'private' && (
+                    <span className="block mt-1 text-oxblood font-mono text-xs">
+                      Locked with your access password. Readers require password to view or download.
+                    </span>
+                  )}
                 </p>
               </div>
 
@@ -253,8 +408,31 @@ export default function UploadPage() {
                   <ArrowUpRight className="w-4 h-4" />
                 </Link>
 
+                {completedDoc.collectionId && (
+                  <Link
+                    href={`/collections/${completedDoc.collectionId}`}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 border border-ink text-ink text-xs font-medium hover:bg-bone transition-colors"
+                  >
+                    <Layers className="w-4 h-4" />
+                    <span>View Course Pack</span>
+                  </Link>
+                )}
+
                 <Button
                   variant="outline"
+                  size="md"
+                  onClick={() => {
+                    if (typeof window !== 'undefined') {
+                      handleCopyLink(`${window.location.origin}/documents/${completedDoc.id}`);
+                    }
+                  }}
+                  leftIcon={copiedLink ? <Check className="w-3.5 h-3.5 text-green-700" /> : <Copy className="w-3.5 h-3.5" />}
+                >
+                  {copiedLink ? 'Link Copied' : 'Copy Direct Link'}
+                </Button>
+
+                <Button
+                  variant="ghost"
                   size="md"
                   onClick={() => {
                     setCompletedDoc(null);
@@ -262,8 +440,11 @@ export default function UploadPage() {
                     setTitle('');
                     setDescription('');
                     setSubject('');
+                    setSubjectCode('');
                     setUnit('');
                     setTags([]);
+                    setPassword('');
+                    setConfirmPassword('');
                     setDeclarationAccepted(false);
                   }}
                 >
@@ -284,13 +465,102 @@ export default function UploadPage() {
               </div>
             )}
 
+            {/* Collection Group Section (if Collection mode is active) */}
+            {uploadMode === 'collection' && (
+              <Card className="bg-card border-ink/15 shadow-none">
+                <CardContent className="p-6 sm:p-7 space-y-5">
+                  <div className="flex items-center justify-between pb-3 border-b border-ink/10">
+                    <div className="flex items-center gap-2">
+                      <Layers className="w-4 h-4 text-oxblood" />
+                      <span className="label-eyebrow text-ink">Course Pack / Collection Assignment</span>
+                    </div>
+                    <Badge variant="neutral" size="sm">
+                      Multi-file Pack
+                    </Badge>
+                  </div>
+
+                  <div className="flex gap-4 border-b border-ink/10 pb-4">
+                    <label className="flex items-center gap-2 text-xs font-medium text-ink cursor-pointer">
+                      <input
+                        type="radio"
+                        name="collectionAction"
+                        checked={collectionAction === 'new'}
+                        onChange={() => setCollectionAction('new')}
+                        className="text-oxblood focus:ring-oxblood"
+                      />
+                      <span>Create New Course Pack</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs font-medium text-ink cursor-pointer">
+                      <input
+                        type="radio"
+                        name="collectionAction"
+                        checked={collectionAction === 'existing'}
+                        onChange={() => setCollectionAction('existing')}
+                        className="text-oxblood focus:ring-oxblood"
+                      />
+                      <span>Add to Existing Pack ({existingCollections.length})</span>
+                    </label>
+                  </div>
+
+                  {collectionAction === 'new' ? (
+                    <div className="space-y-4">
+                      <Input
+                        id="collection-title"
+                        label="Course Pack Title"
+                        required
+                        placeholder="e.g. CS3351 Digital Principles Complete Study Pack 2026"
+                        value={collectionTitle}
+                        onChange={(e) => setCollectionTitle(e.target.value)}
+                        disabled={submitting}
+                        helperText="The overarching group title for this syllabus collection."
+                      />
+
+                      <Textarea
+                        id="collection-description"
+                        label="Course Pack Overview (Optional)"
+                        rows={2}
+                        value={collectionDescription}
+                        onChange={(e) => setCollectionDescription(e.target.value)}
+                        placeholder="Comprehensive archive covering Units 1-5, lab manuals, and previous Anna University question papers..."
+                        disabled={submitting}
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      {existingCollections.length > 0 ? (
+                        <Select
+                          id="existing-collection-select"
+                          label="Select Target Collection"
+                          value={selectedCollectionId}
+                          onChange={(e) => setSelectedCollectionId(e.target.value)}
+                          disabled={submitting}
+                        >
+                          {existingCollections.map((col) => (
+                            <option key={col.id} value={col.id}>
+                              {col.title} ({col.visibility})
+                            </option>
+                          ))}
+                        </Select>
+                      ) : (
+                        <p className="text-xs text-ash">
+                          You do not have any existing collections yet. Please choose &ldquo;Create New Course Pack&rdquo; above.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             {/* 1. File Selection & Dropzone */}
             <Card className="bg-card border-ink/15 shadow-none">
               <CardContent className="p-6 sm:p-7 space-y-4">
                 <div className="flex items-center justify-between pb-3 border-b border-ink/10">
                   <div className="flex items-center gap-2">
                     <FileUp className="w-4 h-4 text-oxblood" />
-                    <span className="label-eyebrow text-ink">01. Select Academic Document</span>
+                    <span className="label-eyebrow text-ink">
+                      {uploadMode === 'collection' ? '01. Select Document File for Pack' : '01. Select Academic Document'}
+                    </span>
                   </div>
                   <span className="meta-mono text-ash text-[11px]">Direct Drive Deposit</span>
                 </div>
@@ -372,13 +642,13 @@ export default function UploadPage() {
               </CardContent>
             </Card>
 
-            {/* 2. Academic Classification Metadata Form */}
+            {/* 2. Academic Classification & Intelligent Subject Matching */}
             <Card className="bg-card border-ink/15 shadow-none">
               <CardContent className="p-6 sm:p-7 space-y-5">
                 <div className="flex items-center justify-between pb-3 border-b border-ink/10">
                   <div className="flex items-center gap-2">
                     <FileText className="w-4 h-4 text-oxblood" />
-                    <span className="label-eyebrow text-ink">02. Folio Classification & Details</span>
+                    <span className="label-eyebrow text-ink">02. Academic Metadata & Curriculum</span>
                   </div>
                   <span className="meta-mono text-ash text-[11px]">* Required Fields</span>
                 </div>
@@ -387,24 +657,36 @@ export default function UploadPage() {
                   id="doc-title"
                   label="Document Title"
                   required
-                  placeholder="e.g. CS501 — Virtual Memory and Paging Lecture Notes"
+                  placeholder="e.g. CS3351 — Unit 1 Combinational Logic Notes"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   disabled={submitting}
                   helperText="Official title under which this folio will appear in the library index."
                 />
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Input
-                    id="doc-subject"
-                    label="Subject Name / Course Code"
-                    required
-                    placeholder="e.g. Operating Systems (CS501)"
-                    value={subject}
-                    onChange={(e) => setSubject(e.target.value)}
-                    disabled={submitting}
-                  />
+                {/* Intelligent Subject Autocomplete */}
+                <SubjectAutocomplete
+                  selectedSubject={subject}
+                  selectedCode={subjectCode}
+                  selectedRegulation={regulation}
+                  selectedDepartment={department}
+                  selectedSemester={semester}
+                  isVerified={isVerifiedSubject}
+                  onSubjectChange={({ subject: newSub, subject_code: newCode, regulation: newReg, department: newDept, semester: newSem, isVerified }) => {
+                    setSubject(newSub);
+                    setSubjectCode(newCode);
+                    setRegulation(newReg);
+                    setIsVerifiedSubject(isVerified);
+                    if (newDept && DEPARTMENTS.includes(newDept)) {
+                      setDepartment(newDept);
+                    }
+                    if (newSem && SEMESTERS.includes(newSem)) {
+                      setSemester(newSem);
+                    }
+                  }}
+                />
 
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Select
                     id="doc-material-type"
                     label="Resource Format"
@@ -416,6 +698,21 @@ export default function UploadPage() {
                     {MATERIAL_TYPES.map((type) => (
                       <option key={type.value} value={type.value}>
                         {type.label}
+                      </option>
+                    ))}
+                  </Select>
+
+                  <Select
+                    id="doc-regulation"
+                    label="Academic Regulation"
+                    required
+                    value={regulation}
+                    onChange={(e) => setRegulation(e.target.value)}
+                    disabled={submitting}
+                  >
+                    {REGULATIONS.map((reg) => (
+                      <option key={reg} value={reg}>
+                        Regulation {reg}
                       </option>
                     ))}
                   </Select>
@@ -550,7 +847,140 @@ export default function UploadPage() {
               </CardContent>
             </Card>
 
-            {/* 3. Academic Fair Use Declaration */}
+            {/* 3. Access Privacy & Password Protection */}
+            <Card className="bg-card border-ink/15 shadow-none">
+              <CardContent className="p-6 sm:p-7 space-y-5">
+                <div className="flex items-center justify-between pb-3 border-b border-ink/10">
+                  <div className="flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-oxblood" />
+                    <span className="label-eyebrow text-ink">03. Access Governance & Privacy</span>
+                  </div>
+                  <Badge variant={visibility === 'private' ? 'oxblood' : 'neutral'} size="sm">
+                    {visibility === 'private' ? 'Encrypted / Private' : 'Open Archive'}
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Public Option */}
+                  <div
+                    tabIndex={0}
+                    role="button"
+                    onClick={() => setVisibility('public')}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setVisibility('public');
+                      }
+                    }}
+                    className={`p-4 border text-left cursor-pointer transition-colors ${
+                      visibility === 'public'
+                        ? 'border-ink bg-paper ring-1 ring-ink'
+                        : 'border-ink/15 bg-card hover:border-ink/40'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Globe className="w-4 h-4 text-ink" />
+                        <span className="font-display text-sm font-medium text-ink">
+                          Public Catalogue
+                        </span>
+                      </div>
+                      <input
+                        type="radio"
+                        name="visibility"
+                        checked={visibility === 'public'}
+                        onChange={() => setVisibility('public')}
+                        className="text-oxblood focus:ring-oxblood"
+                      />
+                    </div>
+                    <p className="text-xs text-ash leading-relaxed">
+                      Indexed in Clio catalogue, discoverable by all scholars, and open for instant reading.
+                    </p>
+                  </div>
+
+                  {/* Private Option */}
+                  <div
+                    tabIndex={0}
+                    role="button"
+                    onClick={() => setVisibility('private')}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setVisibility('private');
+                      }
+                    }}
+                    className={`p-4 border text-left cursor-pointer transition-colors ${
+                      visibility === 'private'
+                        ? 'border-oxblood bg-paper ring-1 ring-oxblood'
+                        : 'border-ink/15 bg-card hover:border-ink/40'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Lock className="w-4 h-4 text-oxblood" />
+                        <span className="font-display text-sm font-medium text-ink">
+                          Private Study Group
+                        </span>
+                      </div>
+                      <input
+                        type="radio"
+                        name="visibility"
+                        checked={visibility === 'private'}
+                        onChange={() => setVisibility('private')}
+                        className="text-oxblood focus:ring-oxblood"
+                      />
+                    </div>
+                    <p className="text-xs text-ash leading-relaxed">
+                      Unlisted from catalogue search. Accessible only by direct URL and a private password.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Password Fields when Private */}
+                {visibility === 'private' && (
+                  <div className="p-4 bg-oxblood/5 border border-oxblood/20 space-y-4">
+                    <div className="flex items-start gap-2">
+                      <ShieldCheck className="w-4 h-4 text-oxblood shrink-0 mt-0.5" />
+                      <p className="text-xs text-ash leading-relaxed">
+                        Private assets are encrypted using salted PBKDF2-SHA512. Drive access links remain
+                        confidential and files stream securely via server proxy upon password unlock.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <Input
+                        id="doc-password"
+                        label="Access Password (min 6 chars)"
+                        type="password"
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••"
+                        disabled={submitting}
+                      />
+
+                      <Input
+                        id="doc-confirm-password"
+                        label="Confirm Password"
+                        type="password"
+                        required
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="••••••••"
+                        disabled={submitting}
+                        error={
+                          confirmPassword && password !== confirmPassword
+                            ? 'Passwords do not match'
+                            : undefined
+                        }
+                      />
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* 4. Academic Fair Use Declaration */}
             <Card className="bg-card border-ink/15 shadow-none">
               <CardContent className="p-5 sm:p-6">
                 <div className="flex items-start gap-3.5">
@@ -593,6 +1023,8 @@ export default function UploadPage() {
               >
                 {submitting
                   ? stagedMessages[submitStage]
+                  : visibility === 'private'
+                  ? 'Deposit & Protect Private Folio'
                   : 'Deposit & Publish to Catalog'}
               </Button>
 

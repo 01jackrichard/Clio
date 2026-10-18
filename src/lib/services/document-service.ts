@@ -46,17 +46,27 @@ export async function getDocuments(params: DocumentFilterParams): Promise<Pagina
       .select('*, profiles(display_name)', { count: 'exact' })
       .eq('status', 'approved');
 
-    // Search filter across title, subject, description
+    // Default catalogue view excludes unlisted private documents
+    if (params.visibility) {
+      query = query.eq('visibility', params.visibility);
+    } else {
+      query = query.or('visibility.eq.public,visibility.is.null');
+    }
+
+    // Search filter across title, subject, subject_code, description
     if (params.q && params.q.trim()) {
       const searchTerm = params.q.trim();
       query = query.or(
-        `title.ilike.%${searchTerm}%,subject.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`
+        `title.ilike.%${searchTerm}%,subject.ilike.%${searchTerm}%,subject_code.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`
       );
     }
 
     // Exact filters
     if (params.department) {
       query = query.eq('department', params.department);
+    }
+    if (params.regulation) {
+      query = query.eq('regulation', params.regulation);
     }
     if (params.academic_year) {
       query = query.eq('academic_year', params.academic_year);
@@ -66,6 +76,9 @@ export async function getDocuments(params: DocumentFilterParams): Promise<Pagina
     }
     if (params.subject) {
       query = query.ilike('subject', `%${params.subject.trim()}%`);
+    }
+    if (params.subject_code) {
+      query = query.ilike('subject_code', `%${params.subject_code.trim()}%`);
     }
     if (params.unit) {
       query = query.eq('unit', params.unit);

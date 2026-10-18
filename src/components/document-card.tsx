@@ -7,6 +7,7 @@ import {
   Bookmark,
   ArrowUpRight,
   Loader2,
+  Lock,
 } from 'lucide-react';
 import { DocumentRecord } from '@/types/database';
 import { formatBytes, getMaterialTypeBadge } from '@/lib/utils';
@@ -92,8 +93,19 @@ export function DocumentCard({
             <span className="text-oxblood font-semibold">Nº {formattedIndex}</span>
             <span className="block h-px w-6 bg-ink/30" aria-hidden="true" />
             <span className="text-ink font-medium">{materialBadge.label}</span>
+            {document.visibility === 'private' && (
+              <span className="inline-flex items-center gap-1 text-[11px] text-oxblood font-semibold">
+                <Lock className="w-3 h-3" />
+                <span>Protected</span>
+              </span>
+            )}
           </div>
-          <span>{document.semester}</span>
+          <div className="flex items-center gap-2">
+            {document.regulation && (
+              <span className="text-[11px] text-ash">Reg. {document.regulation}</span>
+            )}
+            <span>{document.semester}</span>
+          </div>
         </div>
 
         {/* Document Title in Fraunces */}
@@ -103,11 +115,18 @@ export function DocumentCard({
           </h3>
         </Link>
 
-        {/* Italic Subject & Module Accent */}
-        <p className="font-display italic text-sm sm:text-base text-ash leading-snug mb-4">
-          {document.subject}
-          {document.unit && <span className="text-ink/80 not-italic ml-1 font-sans text-xs">({document.unit})</span>}
-        </p>
+        {/* Course Code & Subject Accent */}
+        <div className="flex flex-wrap items-center gap-1.5 mb-4">
+          {document.subject_code && (
+            <span className="px-1.5 py-0.5 font-mono text-[11px] font-semibold bg-bone text-ink border border-ink/20">
+              {document.subject_code}
+            </span>
+          )}
+          <p className="font-display italic text-sm sm:text-base text-ash leading-snug">
+            {document.subject}
+            {document.unit && <span className="text-ink/80 not-italic ml-1 font-sans text-xs">({document.unit})</span>}
+          </p>
+        </div>
 
         {/* Optional Description */}
         {document.description && (

@@ -7,6 +7,9 @@ export interface DocumentFilterParams {
   academic_year?: string;
   semester?: string;
   subject?: string;
+  subject_code?: string;
+  regulation?: string;
+  visibility?: string;
   unit?: string;
   material_type?: string;
   sort?: 'newest' | 'downloads' | 'title';

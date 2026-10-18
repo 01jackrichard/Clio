@@ -1,9 +1,20 @@
+'use client';
+
 import React from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { ArrowUpRight } from 'lucide-react';
 import { config } from '@/lib/config';
 
 export function Footer() {
+  const pathname = usePathname();
+
+  // The landing page keeps the full institutional footer.
+  // All authenticated routes must not display the landing-page footer.
+  if (pathname !== '/') {
+    return null;
+  }
+
   return (
     <footer className="bg-ink text-paper mt-auto">
       <div className="container-editorial py-18 sm:py-24">

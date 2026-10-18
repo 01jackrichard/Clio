@@ -13,9 +13,11 @@ interface DocumentsPageProps {
   searchParams: Promise<{
     q?: string;
     department?: string;
+    regulation?: string;
     academic_year?: string;
     semester?: string;
     subject?: string;
+    subject_code?: string;
     unit?: string;
     material_type?: string;
     sort?: 'newest' | 'downloads' | 'title';
@@ -36,9 +38,11 @@ export default async function DocumentsPage({ searchParams }: DocumentsPageProps
   const activeFilters = [
     params.q && { key: 'q', label: `Keyword: "${params.q}"` },
     params.department && { key: 'department', label: params.department },
+    params.regulation && { key: 'regulation', label: `Regulation ${params.regulation}` },
     params.academic_year && { key: 'academic_year', label: params.academic_year },
     params.semester && { key: 'semester', label: params.semester },
     params.subject && { key: 'subject', label: `Subject: ${params.subject}` },
+    params.subject_code && { key: 'subject_code', label: `Code: ${params.subject_code}` },
     params.unit && { key: 'unit', label: `Unit: ${params.unit}` },
     params.material_type && { key: 'material_type', label: params.material_type },
   ].filter(Boolean) as { key: string; label: string }[];

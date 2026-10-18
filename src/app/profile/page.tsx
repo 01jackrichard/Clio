@@ -41,7 +41,6 @@ export default async function ProfilePage() {
       {/* Editorial Page Header */}
       <PageHeader
         eyebrow="Academic Identity"
-        eyebrowNumber="FOLIO 06"
         title="Scholar Profile"
         description={`Manage your institutional affiliation, academic standing, and public scholar credentials for ${config.app.collegeName}.`}
       />

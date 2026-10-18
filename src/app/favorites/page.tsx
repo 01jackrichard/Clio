@@ -32,7 +32,6 @@ export default async function FavoritesPage() {
     <Container className="py-8 sm:py-12 space-y-8">
       <PageHeader
         eyebrow="Personal Archive"
-        eyebrowNumber="FOLIO 03"
         title="Saved Bookmarks"
         description="Reference materials, lecture notes, and examination papers pinned to your personal study desk for quick revision."
         action={

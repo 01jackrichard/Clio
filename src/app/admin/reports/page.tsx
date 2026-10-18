@@ -80,7 +80,6 @@ export default async function AdminReportsPage() {
       {/* Page Header */}
       <PageHeader
         eyebrow="Integrity & Compliance"
-        eyebrowNumber="FOLIO 02"
         title="Abuse & Quality Reports"
         description="Investigate documents flagged for duplicates, copyright concerns, incorrect classification, or unreadable scans."
         action={
