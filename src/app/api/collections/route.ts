@@ -74,6 +74,14 @@ export async function GET(request: NextRequest) {
     const { data: collections, error } = await query.limit(50);
 
     if (error) {
+      if (
+        error.code === '42P01' ||
+        error.code === '42703' ||
+        error.message?.includes('does not exist')
+      ) {
+        console.warn('[Collections API] Collections table or columns not yet migrated, returning empty list');
+        return NextResponse.json({ collections: [] });
+      }
       console.error('[Collections API] GET error:', error);
       return NextResponse.json({ error: 'Failed to fetch collections' }, { status: 500 });
     }
@@ -83,19 +91,23 @@ export async function GET(request: NextRequest) {
     let countsMap: Record<string, number> = {};
 
     if (collectionIds.length > 0) {
-      const { data: countData } = await adminClient
-        .from('documents')
-        .select('collection_id')
-        .in('collection_id', collectionIds)
-        .eq('status', 'approved');
+      try {
+        const { data: countData } = await adminClient
+          .from('documents')
+          .select('collection_id')
+          .in('collection_id', collectionIds)
+          .eq('status', 'approved');
 
-      if (countData) {
-        countsMap = countData.reduce((acc, row) => {
-          if (row.collection_id) {
-            acc[row.collection_id] = (acc[row.collection_id] || 0) + 1;
-          }
-          return acc;
-        }, {} as Record<string, number>);
+        if (countData) {
+          countsMap = countData.reduce((acc, row) => {
+            if (row.collection_id) {
+              acc[row.collection_id] = (acc[row.collection_id] || 0) + 1;
+            }
+            return acc;
+          }, {} as Record<string, number>);
+        }
+      } catch {
+        // collection_id column may not exist on unmigrated database
       }
     }
 
@@ -171,6 +183,20 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (insertError || !newCollection) {
+      if (
+        insertError &&
+        (insertError.code === '42P01' ||
+          insertError.code === '42703' ||
+          insertError.message?.includes('does not exist'))
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              'Course Packs feature is not yet initialized in the database schema. Please contact an administrator.',
+          },
+          { status: 503 }
+        );
+      }
       console.error('[Collections API] Insertion error:', insertError);
       return NextResponse.json(
         { error: 'Failed to create collection. Please try again.' },

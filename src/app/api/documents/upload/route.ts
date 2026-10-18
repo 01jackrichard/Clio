@@ -261,7 +261,54 @@ export async function POST(request: NextRequest) {
       .select()
       .single();
 
-    if (insertError || !newDoc) {
+    let registeredDoc = newDoc;
+
+    if (insertError || !registeredDoc) {
+      if (
+        insertError &&
+        (insertError.code === '42703' ||
+          insertError.message?.includes('does not exist') ||
+          insertError.message?.includes('column'))
+      ) {
+        console.warn(
+          '[DirectUpload] Database missing extended columns; retrying insertion with baseline schema columns:',
+          insertError.message
+        );
+        const legacyRes = await adminClient
+          .from('documents')
+          .insert({
+            title: validatedData.title,
+            description: validatedData.description || null,
+            department: validatedData.department,
+            academic_year: validatedData.academic_year,
+            semester: validatedData.semester,
+            subject: validatedData.subject,
+            unit: validatedData.unit || null,
+            material_type: validatedData.material_type,
+            tags: validatedData.tags || [],
+            original_filename: file.name,
+            file_size: fileBuffer.length,
+            mime_type: fileValidation.detectedMimeType!,
+            uploader_id: user.id,
+            storage_provider: 'google_drive',
+            drive_file_id: driveUpload.fileId,
+            status: 'approved',
+            approved_at: now,
+            review_notes: 'Automatically published via direct Google Drive upload (baseline schema fallback)',
+            download_count: 0,
+          })
+          .select()
+          .single();
+
+        if (legacyRes.data) {
+          registeredDoc = legacyRes.data;
+        } else {
+          console.error('[DirectUpload] Baseline fallback insert error:', legacyRes.error);
+        }
+      }
+    }
+
+    if (!registeredDoc) {
       console.error('[DirectUpload] Database insertion error:', insertError);
       return NextResponse.json(
         { error: 'File was uploaded to Google Drive, but catalog registration failed. Please contact an administrator.' },

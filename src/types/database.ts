@@ -29,6 +29,7 @@ export interface Profile {
 export interface CollectionRecord {
   id: string;
   title: string;
+  slug?: string;
   description?: string | null;
   department?: Department | null;
   regulation?: Regulation | string | null;
@@ -36,13 +37,15 @@ export interface CollectionRecord {
   semester?: Semester | null;
   visibility: Visibility;
   password_hash?: string | null;
-  owner_id: string;
+  user_id: string;
+  owner_id?: string;
   created_at: string;
   updated_at: string;
   // Joined/calculated fields
   owner_name?: string | null;
   documents?: DocumentRecord[];
   document_count?: number;
+  is_owner?: boolean;
 }
 
 export interface DocumentRecord {

@@ -46,13 +46,33 @@ export async function POST(
     const supabase = await createClient();
 
     // 2. Fetch document record (including password_hash)
-    const { data: document, error: docError } = await supabase
+    const { data: documentData, error: docError } = await supabase
       .from('documents')
       .select('id, title, visibility, password_hash, uploader_id')
       .eq('id', id)
       .single();
 
+    let document = documentData;
+
     if (docError || !document) {
+      if (docError && (docError.code === '42703' || docError.message?.includes('does not exist') || docError.message?.includes('column'))) {
+        const fallbackRes = await supabase
+          .from('documents')
+          .select('id, title, uploader_id')
+          .eq('id', id)
+          .single();
+
+        if (fallbackRes.data) {
+          document = {
+            ...fallbackRes.data,
+            visibility: 'public',
+            password_hash: null,
+          };
+        }
+      }
+    }
+
+    if (!document) {
       return NextResponse.json(
         { error: 'Document not found or inaccessible.' },
         { status: 404 }

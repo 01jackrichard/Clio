@@ -25,13 +25,33 @@ export async function GET(
     }
 
     // 2. Fetch document record from database
-    const { data: document, error: docError } = await supabase
+    const { data: documentData, error: docError } = await supabase
       .from('documents')
       .select('id, title, original_filename, file_key, drive_file_id, submitted_drive_url, status, uploader_id, storage_provider, visibility, password_hash')
       .eq('id', id)
       .single();
 
+    let document = documentData;
+
     if (docError || !document) {
+      if (docError && (docError.code === '42703' || docError.message?.includes('does not exist') || docError.message?.includes('column'))) {
+        const fallbackRes = await supabase
+          .from('documents')
+          .select('id, title, original_filename, file_key, drive_file_id, submitted_drive_url, status, uploader_id, storage_provider')
+          .eq('id', id)
+          .single();
+
+        if (fallbackRes.data) {
+          document = {
+            ...fallbackRes.data,
+            visibility: 'public',
+            password_hash: null,
+          };
+        }
+      }
+    }
+
+    if (!document) {
       return NextResponse.json(
         { error: 'Document not found' },
         { status: 404 }

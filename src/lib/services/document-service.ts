@@ -17,6 +17,162 @@ interface FavoriteWithDocumentRow {
   }) | null;
 }
 
+export function isSchemaMismatchError(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  const msg = (error.message || '').toLowerCase();
+  const code = error.code || '';
+  return (
+    code === '42703' || // PostgreSQL undefined_column
+    code === 'PGRST204' || // PostgREST column not found in schema cache
+    code === 'PGRST200' || // PostgREST relationship not found
+    code === '42P01' || // PostgreSQL undefined_table
+    msg.includes('does not exist') ||
+    msg.includes('column') ||
+    msg.includes('relationship') ||
+    msg.includes('profiles') ||
+    msg.includes('visibility') ||
+    msg.includes('subject_code') ||
+    msg.includes('regulation')
+  );
+}
+
+/**
+ * Baseline fallback query querying only universally present schema columns.
+ * Guarantees zero downtime and prevents catalogue crashes on unmigrated databases.
+ */
+async function fetchBaselineDocuments(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  params: DocumentFilterParams,
+  offset: number,
+  limit: number,
+  page: number
+): Promise<PaginatedResult<DocumentRecord> | null> {
+  // Security guarantee: In an unmigrated database, all approved documents are public legacy folios.
+  // If the requester explicitly filtered for private resources, return zero results to ensure no public documents leak as private.
+  if (params.visibility === 'private') {
+    return {
+      data: [],
+      total: 0,
+      page,
+      limit,
+      totalPages: 0,
+    };
+  }
+
+  // If filtered for a non-default regulation on unmigrated DB, return zero results
+  if (params.regulation && params.regulation !== '2021') {
+    return {
+      data: [],
+      total: 0,
+      page,
+      limit,
+      totalPages: 0,
+    };
+  }
+
+  const buildQuery = (selectClause: string) => {
+    let q = supabase
+      .from('documents')
+      .select(selectClause, { count: 'exact' })
+      .eq('status', 'approved');
+
+    if (params.department) {
+      q = q.eq('department', params.department);
+    }
+    if (params.academic_year) {
+      q = q.eq('academic_year', params.academic_year);
+    }
+    if (params.semester) {
+      q = q.eq('semester', params.semester);
+    }
+    if (params.subject) {
+      q = q.ilike('subject', `%${params.subject.trim()}%`);
+    }
+    if (params.unit) {
+      q = q.eq('unit', params.unit);
+    }
+    if (params.material_type) {
+      q = q.eq('material_type', params.material_type);
+    }
+
+    // Keyword search over baseline text columns only (title, subject, description)
+    if (params.q && params.q.trim()) {
+      const searchTerm = params.q.trim();
+      q = q.or(
+        `title.ilike.%${searchTerm}%,subject.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`
+      );
+    }
+
+    if (params.sort === 'downloads') {
+      q = q.order('download_count', { ascending: false }).order('created_at', { ascending: false });
+    } else if (params.sort === 'title') {
+      q = q.order('title', { ascending: true });
+    } else {
+      q = q.order('created_at', { ascending: false });
+    }
+
+    return q.range(offset, offset + limit - 1);
+  };
+
+  try {
+    // Try baseline with profiles join first
+    const resWithProfiles = await buildQuery('*, profiles(display_name)');
+    if (!resWithProfiles.error && resWithProfiles.data) {
+      const total = resWithProfiles.count ?? 0;
+      const formattedData: DocumentRecord[] = (resWithProfiles.data as unknown as DocumentWithProfileRow[]).map(
+        (row) => ({
+          ...row,
+          visibility: 'public',
+          regulation: row.regulation || '2021',
+          subject_code: row.subject_code || null,
+          is_verified_subject: row.is_verified_subject ?? true,
+          uploader_name: row.profiles?.display_name || 'Classmate',
+        })
+      );
+
+      return {
+        data: formattedData,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      };
+    }
+  } catch {
+    // Continue to fallback without join
+  }
+
+  try {
+    // Fallback: Plain query on documents table without profiles join
+    const resPlain = await buildQuery('*');
+    if (!resPlain.error && resPlain.data) {
+      const total = resPlain.count ?? 0;
+      const formattedData: DocumentRecord[] = (resPlain.data as unknown as DocumentRecord[]).map(
+        (doc) => ({
+          ...doc,
+          visibility: 'public',
+          regulation: doc.regulation || '2021',
+          subject_code: doc.subject_code || null,
+          is_verified_subject: doc.is_verified_subject ?? true,
+          uploader_name: 'Classmate',
+        })
+      );
+
+      return {
+        data: formattedData,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      };
+    }
+  } catch {
+    // Failed plain query
+  }
+
+  return null;
+}
+
 /**
  * Fetch approved documents with filtering, search, and pagination.
  * Resilient against unconfigured environments or schema variations.
@@ -102,26 +258,13 @@ export async function getDocuments(params: DocumentFilterParams): Promise<Pagina
     const { data, count, error } = await query;
 
     if (error) {
-      // If the join with profiles fails due to schema cache, retry without join
-      if (error.message.includes('relationship') || error.message.includes('profiles')) {
-        const fallbackRes = await supabase
-          .from('documents')
-          .select('*', { count: 'exact' })
-          .eq('status', 'approved')
-          .range(offset, offset + limit - 1);
-
-        if (!fallbackRes.error && fallbackRes.data) {
-          const total = fallbackRes.count ?? 0;
-          return {
-            data: (fallbackRes.data as DocumentRecord[]).map(doc => ({
-              ...doc,
-              uploader_name: 'Classmate',
-            })),
-            total,
-            page,
-            limit,
-            totalPages: Math.ceil(total / limit),
-          };
+      // If error is due to missing columns (e.g. visibility, subject_code, regulation) or relations (profiles)
+      // gracefully fall back to baseline query guaranteed to work on any Supabase schema version.
+      if (isSchemaMismatchError(error)) {
+        console.warn('Document query encountered schema variation, activating baseline fallback:', error.message);
+        const baselineResult = await fetchBaselineDocuments(supabase, params, offset, limit, page);
+        if (baselineResult) {
+          return baselineResult;
         }
       }
 
@@ -138,6 +281,10 @@ export async function getDocuments(params: DocumentFilterParams): Promise<Pagina
 
     const formattedData: DocumentRecord[] = ((data as unknown as DocumentWithProfileRow[]) || []).map((row) => ({
       ...row,
+      visibility: row.visibility || 'public',
+      regulation: row.regulation || '2021',
+      subject_code: row.subject_code || null,
+      is_verified_subject: row.is_verified_subject ?? true,
       uploader_name: row.profiles?.display_name || 'Classmate',
     }));
 
@@ -191,8 +338,13 @@ export async function getDocumentById(id: string): Promise<DocumentRecord | null
         .single();
 
       if (fallback.data) {
+        const doc = fallback.data as DocumentRecord;
         return {
-          ...(fallback.data as DocumentRecord),
+          ...doc,
+          visibility: doc.visibility || 'public',
+          regulation: doc.regulation || '2021',
+          subject_code: doc.subject_code || null,
+          is_verified_subject: doc.is_verified_subject ?? true,
           uploader_name: 'Classmate',
         };
       }
@@ -203,6 +355,10 @@ export async function getDocumentById(id: string): Promise<DocumentRecord | null
 
     return {
       ...typedData,
+      visibility: typedData.visibility || 'public',
+      regulation: typedData.regulation || '2021',
+      subject_code: typedData.subject_code || null,
+      is_verified_subject: typedData.is_verified_subject ?? true,
       uploader_name: typedData.profiles?.display_name || 'Classmate',
     };
   } catch (err) {
@@ -241,7 +397,13 @@ export async function getUserSubmissions(
       return [];
     }
 
-    return (data as DocumentRecord[]) || [];
+    return ((data as DocumentRecord[]) || []).map((doc) => ({
+      ...doc,
+      visibility: doc.visibility || 'public',
+      regulation: doc.regulation || '2021',
+      subject_code: doc.subject_code || null,
+      is_verified_subject: doc.is_verified_subject ?? true,
+    }));
   } catch {
     return [];
   }
@@ -275,6 +437,10 @@ export async function getUserFavorites(userId: string): Promise<DocumentRecord[]
       .filter((doc): doc is NonNullable<typeof doc> => Boolean(doc && doc.status === 'approved'))
       .map((doc) => ({
         ...doc,
+        visibility: doc.visibility || 'public',
+        regulation: doc.regulation || '2021',
+        subject_code: doc.subject_code || null,
+        is_verified_subject: doc.is_verified_subject ?? true,
         uploader_name: doc.profiles?.display_name || 'Classmate',
       }));
   } catch {

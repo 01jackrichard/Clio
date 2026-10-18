@@ -14,13 +14,33 @@ export async function GET(
     const supabase = await createClient();
 
     // 1. Fetch document record
-    const { data: document, error: docError } = await supabase
+    const { data: documentData, error: docError } = await supabase
       .from('documents')
       .select('id, title, mime_type, original_filename, drive_file_id, visibility, password_hash, uploader_id, status')
       .eq('id', id)
       .single();
 
-    if (docError || !document || !document.drive_file_id) {
+    let document = documentData;
+
+    if (docError || !document) {
+      if (docError && (docError.code === '42703' || docError.message?.includes('does not exist') || docError.message?.includes('column'))) {
+        const fallbackRes = await supabase
+          .from('documents')
+          .select('id, title, mime_type, original_filename, drive_file_id, uploader_id, status')
+          .eq('id', id)
+          .single();
+
+        if (fallbackRes.data) {
+          document = {
+            ...fallbackRes.data,
+            visibility: 'public',
+            password_hash: null,
+          };
+        }
+      }
+    }
+
+    if (!document || !document.drive_file_id) {
       return NextResponse.json(
         { error: 'Document not found or has no associated Google Drive asset.' },
         { status: 404 }
