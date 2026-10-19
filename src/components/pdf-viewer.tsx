@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { getDriveEmbedUrl, isValidDriveFileId } from '@/lib/drive/urls';
 import { Button, buttonVariants } from '@/components/ui';
+import { Skiper89 } from '@/components/v1/skiper89';
 
 interface PdfViewerProps {
   documentId: string;
@@ -221,6 +222,18 @@ export function PdfViewer({
           />
         ) : null}
       </div>
+
+      {/* Skiper89 Scroll Progress: Active during reading mode */}
+      {!loading && !iframeLoading && !error && (
+        <Skiper89
+          className={
+            isFullscreen
+              ? 'fixed top-16 right-4 sm:right-6 z-50'
+              : 'fixed top-24 right-4 sm:right-6 z-30'
+          }
+          ariaLabel={`Folio reading scroll progress for ${documentTitle}`}
+        />
+      )}
     </div>
   );
 }

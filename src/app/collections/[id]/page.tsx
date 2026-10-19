@@ -13,10 +13,12 @@ import {
 import { createClient } from '@/lib/supabase/server';
 import { getAdminClient } from '@/lib/supabase/admin';
 import { verifyUnlockToken } from '@/lib/security/password-service';
+import { hasValidAccessGrant } from '@/lib/services/sharing-service';
 import { formatDate } from '@/lib/utils';
 import { Badge, Container, buttonVariants } from '@/components/ui';
 import { DocumentCard } from '@/components/document-card';
 import { PasswordUnlockCard } from '@/components/password-unlock-card';
+import { ShareResourceButton } from '@/components/sharing/share-resource-button';
 import { DocumentRecord } from '@/types/database';
 
 export const dynamic = 'force-dynamic';
@@ -62,9 +64,15 @@ export default async function CollectionDetailPage({ params }: CollectionPagePro
 
   let isUnlocked = true;
   if (collection.visibility === 'private' && !isOwner && !isAdmin) {
-    const cookieStore = await cookies();
-    const unlockCookie = cookieStore.get(`clio_collection_unlock_${collection.id}`)?.value;
-    isUnlocked = unlockCookie ? verifyUnlockToken(unlockCookie, collection.id) : false;
+    if (user) {
+      const hasGrant = await hasValidAccessGrant(user.id, 'collection', collection.id);
+      if (hasGrant) isUnlocked = true;
+    }
+    if (!isUnlocked) {
+      const cookieStore = await cookies();
+      const unlockCookie = cookieStore.get(`clio_collection_unlock_${collection.id}`)?.value;
+      isUnlocked = unlockCookie ? verifyUnlockToken(unlockCookie, collection.id) : false;
+    }
   }
 
   // If unlocked, fetch all approved documents in this collection
@@ -165,6 +173,14 @@ export default async function CollectionDetailPage({ params }: CollectionPagePro
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              <ShareResourceButton
+                resourceType="collection"
+                resourceId={collection.id}
+                resourceTitle={collection.title}
+                isOwner={isOwner}
+                label="Share Pack"
+              />
+
               <Link
                 href="/upload"
                 className={buttonVariants({

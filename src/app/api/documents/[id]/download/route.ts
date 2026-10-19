@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { extractDriveFileId, getDriveDownloadUrl, getDriveViewUrl } from '@/lib/drive/urls';
 import { verifyUnlockToken } from '@/lib/security/password-service';
+import { hasValidAccessGrant } from '@/lib/services/sharing-service';
 
 export async function GET(
   request: NextRequest,
@@ -27,7 +28,7 @@ export async function GET(
     // 2. Fetch document record from database
     const { data: documentData, error: docError } = await supabase
       .from('documents')
-      .select('id, title, original_filename, file_key, drive_file_id, submitted_drive_url, status, uploader_id, storage_provider, visibility, password_hash')
+      .select('id, title, original_filename, file_key, drive_file_id, submitted_drive_url, status, uploader_id, storage_provider, visibility, password_hash, collection_id')
       .eq('id', id)
       .single();
 
@@ -46,6 +47,7 @@ export async function GET(
             ...fallbackRes.data,
             visibility: 'public',
             password_hash: null,
+            collection_id: null,
           };
         }
       }
@@ -85,7 +87,12 @@ export async function GET(
 
     // 4. Privacy password check
     const isPrivate = document.visibility === 'private';
+    let hasGrant = false;
     if (isPrivate && !isOwner && !isAdmin) {
+      hasGrant = await hasValidAccessGrant(user.id, 'document', id);
+    }
+
+    if (isPrivate && !isOwner && !isAdmin && !hasGrant) {
       const cookieToken = request.cookies.get(`clio_unlock_${id}`)?.value;
       const headerToken = request.headers.get('x-clio-unlock-token');
       const token = cookieToken || headerToken;
@@ -155,7 +162,7 @@ export async function GET(
 
     const searchParams = request.nextUrl.searchParams;
     if (searchParams.get('redirect') === 'true') {
-      return NextResponse.redirect(downloadUrl);
+      return NextResponse.redirect(new URL(downloadUrl, request.url));
     }
 
     return NextResponse.json({

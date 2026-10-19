@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 900" width="800" height="900">
+  <defs>
+    <linearGradient id="fullBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FAF7F2"/>
+      <stop offset="100%" stop-color="#F2EFE9"/>
+    </linearGradient>
+    <linearGradient id="burgundyGradStacked" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#8E2522"/>
+      <stop offset="50%" stop-color="#7A1F1D"/>
+      <stop offset="100%" stop-color="#581514"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Warm Ivory Ground -->
+  <rect width="800" height="900" fill="url(#fullBg)"/>
+
+  <!-- Classical Archival Framing Borders -->
+  <rect x="28" y="28" width="744" height="844" fill="none" stroke="#7A1F1D" stroke-width="1.5" stroke-opacity="0.35"/>
+  <rect x="36" y="36" width="728" height="828" fill="none" stroke="#7A1F1D" stroke-width="0.75" stroke-opacity="0.2"/>
+
+  <!-- Centered Content Stack -->
+  <g transform="translate(400, 0)">
+    <!-- 1. Emblem (scaled proportionally) -->
+    <g transform="translate(0, 235) scale(0.72)">
+      <!-- Classical Roman C Outer & Inner Bowl -->
+      <path d="
+        M 116 -128
+        C 134 -128, 146 -114, 146 -98
+        C 146 -80, 130 -66, 112 -66
+        C 98 -66, 88 -76, 78 -88
+        C 52 -122, 10 -144, -40 -144
+        C -118 -144, -172 -88, -172 0
+        C -172 88, -118 144, -40 144
+        C 10 144, 52 122, 78 88
+        C 88 76, 98 66, 112 66
+        C 130 66, 146 80, 146 98
+        C 146 114, 134 128, 116 128
+        C 82 128, 54 168, -38 168
+        C -138 168, -204 96, -204 0
+        C -204 -96, -138 -168, -38 -168
+        C 54 -168, 82 -128, 116 -128
+        Z
+      " fill="url(#burgundyGradStacked)"/>
+
+      <!-- Integrated Classical Column -->
+      <g>
+        <rect x="-140" y="-124" width="60" height="12" rx="2" fill="#7A1F1D"/>
+        <path d="M -136 -112 L -126 -100 L -94 -100 L -84 -112 Z" fill="#581514"/>
+        <rect x="-130" y="-100" width="40" height="5" rx="1" fill="#7A1F1D"/>
+
+        <rect x="-126" y="-95" width="32" height="190" fill="#581514"/>
+        <rect x="-124" y="-92" width="6" height="184" rx="3" fill="#FAF7F2"/>
+        <rect x="-114" y="-92" width="6" height="184" rx="3" fill="#FAF7F2"/>
+        <rect x="-104" y="-92" width="6" height="184" rx="3" fill="#FAF7F2"/>
+
+        <rect x="-130" y="95" width="40" height="5" rx="1" fill="#7A1F1D"/>
+        <path d="M -126 100 L -136 112 L -84 112 L -94 100 Z" fill="#581514"/>
+        <rect x="-140" y="112" width="60" height="14" rx="2" fill="#7A1F1D"/>
+      </g>
+
+      <!-- Central Diamond -->
+      <g transform="translate(48, 0)">
+        <polygon points="0,-36 36,0 0,36 -36,0" fill="url(#burgundyGradStacked)"/>
+        <polygon points="0,-18 18,0 0,18 -18,0" fill="#FAF7F2"/>
+        <polygon points="0,-8 8,0 0,8 -8,0" fill="#7A1F1D"/>
+      </g>
+    </g>
+
+    <!-- 2. "Clio" Elegant Serif Wordmark -->
+    <text x="0" y="505" text-anchor="middle" font-family="'Fraunces', 'Cinzel', 'Playfair Display', Georgia, serif" font-size="116" font-weight="500" fill="#121110" letter-spacing="0.03em">Clio</text>
+
+    <!-- 3. Fine Burgundy Divider with Central Diamond Ornament -->
+    <g transform="translate(0, 575)">
+      <!-- Left hairline rule -->
+      <line x1="-240" y1="0" x2="-26" y2="0" stroke="#7A1F1D" stroke-width="1.25" stroke-opacity="0.85"/>
+      <!-- Center diamond ornament -->
+      <polygon points="0,-8 8,0 0,8 -8,0" fill="#7A1F1D"/>
+      <circle cx="0" cy="0" r="2" fill="#F4EFEB"/>
+      <!-- Flanking small dots -->
+      <circle cx="-16" cy="0" r="1.5" fill="#7A1F1D"/>
+      <circle cx="16" cy="0" r="1.5" fill="#7A1F1D"/>
+      <!-- Right hairline rule -->
+      <line x1="26" y1="0" x2="240" y2="0" stroke="#7A1F1D" stroke-width="1.25" stroke-opacity="0.85"/>
+    </g>
+
+    <!-- 4. Widely Spaced "ACADEMIC ARCHIVE" Subtitle -->
+    <text x="0" y="635" text-anchor="middle" font-family="'Inter Tight', -apple-system, sans-serif" font-size="20" font-weight="600" fill="#7A1F1D" letter-spacing="0.32em">ACADEMIC ARCHIVE</text>
+    
+    <!-- 5. Tagline in clean italic serif -->
+    <text x="0" y="695" text-anchor="middle" font-family="'Fraunces', Georgia, serif" font-size="16" font-style="italic" fill="#736B63" letter-spacing="0.08em">Knowledge, preserved.</text>
+  </g>
+</svg>

@@ -26,6 +26,17 @@ export interface Profile {
   updated_at: string;
 }
 
+export interface InstitutionRecord {
+  id: string;
+  code: string;
+  name: string;
+  short_name: string;
+  domain?: string | null;
+  description?: string | null;
+  is_verified: boolean;
+  document_count?: number;
+}
+
 export interface CollectionRecord {
   id: string;
   title: string;
@@ -35,6 +46,7 @@ export interface CollectionRecord {
   regulation?: Regulation | string | null;
   academic_year?: AcademicYear | null;
   semester?: Semester | null;
+  institution?: string | null;
   visibility: Visibility;
   password_hash?: string | null;
   user_id: string;
@@ -58,6 +70,7 @@ export interface DocumentRecord {
   subject: string;
   subject_code?: string | null;
   regulation?: Regulation | string | null;
+  institution?: string | null;
   is_verified_subject?: boolean;
   unit?: Unit | null;
   material_type: MaterialTypeValue;

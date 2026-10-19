@@ -8,6 +8,8 @@ import { config } from '@/lib/config';
 import { Container, PageHeader } from '@/components/ui/container';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { getStorageUsage } from '@/lib/services/storage-quota-service';
+import { PrivateStoragePanel } from '@/components/storage/private-storage-panel';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,6 +37,7 @@ export default async function ProfilePage() {
   const displayName = profile?.display_name || user.email?.split('@')[0] || 'Scholar';
   const initialLetter = displayName.charAt(0).toUpperCase();
   const isProfileIncomplete = !profile?.department || !profile?.academic_year;
+  const storageUsage = await getStorageUsage(user.id);
 
   return (
     <Container className="py-8 sm:py-12 space-y-10">
@@ -134,6 +137,9 @@ export default async function ProfilePage() {
               </p>
             </Card>
           )}
+
+          {/* Private Storage Quota Panel */}
+          <PrivateStoragePanel initialUsage={storageUsage} />
         </div>
 
         {/* Right Column: Profile Form */}

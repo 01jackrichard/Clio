@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ArrowUpRight } from 'lucide-react';
 import { config } from '@/lib/config';
+import { PwaInstallButton } from '@/components/pwa';
 
 export function Footer() {
   const pathname = usePathname();
@@ -88,6 +89,12 @@ export function Footer() {
                 <Link href="/documents" className="link-underline text-sm">
                   Report Copyright or Abuse
                 </Link>
+              </li>
+              <li className="pt-2">
+                <PwaInstallButton
+                  variant="footer"
+                  className="text-paper/75 hover:text-paper"
+                />
               </li>
               <li className="text-paper/70 text-xs pt-3 leading-relaxed">
                 <span className="block font-medium text-paper">{config.app.collegeName}</span>

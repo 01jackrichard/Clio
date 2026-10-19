@@ -21,6 +21,7 @@ import { DocumentActions } from './document-actions';
 import { Badge, Container } from '@/components/ui';
 import { PasswordUnlockCard } from '@/components/password-unlock-card';
 import { verifyUnlockToken } from '@/lib/security/password-service';
+import { hasValidAccessGrant } from '@/lib/services/sharing-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,14 +41,17 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
 
   // Check privacy access grant
   let isUnlocked = true;
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const isOwner = Boolean(user && user.id === document.uploader_id);
+
   if (document.visibility === 'private') {
     isUnlocked = false;
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
 
-    if (user && user.id === document.uploader_id) {
+    if (isOwner) {
       isUnlocked = true;
     } else {
       if (user) {
@@ -57,6 +61,11 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
           .eq('id', user.id)
           .single();
         if (profile?.role === 'admin') isUnlocked = true;
+
+        if (!isUnlocked) {
+          const hasGrant = await hasValidAccessGrant(user.id, 'document', document.id);
+          if (hasGrant) isUnlocked = true;
+        }
       }
 
       if (!isUnlocked) {
@@ -175,6 +184,7 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
                 originalFilename={document.original_filename}
                 fileSize={document.file_size}
                 downloadCount={document.download_count}
+                isOwner={isOwner}
               />
             ) : (
               <div className="flex items-center gap-2 px-3 py-2 bg-bone/60 border border-ink/20 meta-mono text-xs text-ash">

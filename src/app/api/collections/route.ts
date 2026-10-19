@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getAdminClient } from '@/lib/supabase/admin';
 import { createCollectionSchema } from '@/lib/validations/document';
 import { hashAccessPassword } from '@/lib/security/password-service';
+import { sanitizePostgrestFilter } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,7 +69,10 @@ export async function GET(request: NextRequest) {
       query = query.eq('regulation', regulation);
     }
     if (search) {
-      query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
+      const safeSearch = sanitizePostgrestFilter(search);
+      if (safeSearch) {
+        query = query.or(`title.ilike.%${safeSearch}%,description.ilike.%${safeSearch}%`);
+      }
     }
 
     const { data: collections, error } = await query.limit(50);

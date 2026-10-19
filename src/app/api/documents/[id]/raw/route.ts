@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getValidAccessToken } from '@/lib/drive/google-drive-service';
 import { verifyUnlockToken } from '@/lib/security/password-service';
+import { hasValidAccessGrant } from '@/lib/services/sharing-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +17,7 @@ export async function GET(
     // 1. Fetch document record
     const { data: documentData, error: docError } = await supabase
       .from('documents')
-      .select('id, title, mime_type, original_filename, drive_file_id, visibility, password_hash, uploader_id, status')
+      .select('id, title, mime_type, original_filename, drive_file_id, visibility, password_hash, uploader_id, status, collection_id')
       .eq('id', id)
       .single();
 
@@ -35,6 +36,7 @@ export async function GET(
             ...fallbackRes.data,
             visibility: 'public',
             password_hash: null,
+            collection_id: null,
           };
         }
       }
@@ -67,6 +69,12 @@ export async function GET(
 
         if (profile?.role === 'admin') {
           isAuthorized = true;
+        } else {
+          // Check if caller has a persistent, unrevoked share grant for this document
+          const hasGrant = await hasValidAccessGrant(user.id, 'document', id);
+          if (hasGrant) {
+            isAuthorized = true;
+          }
         }
       }
     }
@@ -130,6 +138,7 @@ export async function GET(
     responseHeaders.set('Content-Type', contentType);
     responseHeaders.set('Content-Disposition', `inline; filename="${filename}"`);
     responseHeaders.set('Cache-Control', 'private, max-age=3600');
+    responseHeaders.set('X-Content-Type-Options', 'nosniff');
 
     return new NextResponse(driveRes.body, {
       status: 200,

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getAdminClient } from '@/lib/supabase/admin';
 import { config } from '@/lib/config';
-import { validateAcademicDocument } from '@/lib/drive/file-validation';
+import { validateAcademicDocument, sanitizeFilename } from '@/lib/drive/file-validation';
 import {
   uploadFileToDrive,
   setDriveFilePublicReader,
@@ -19,6 +19,10 @@ import {
 
 import { hashAccessPassword } from '@/lib/security/password-service';
 import { directUploadSchema } from '@/lib/validations/document';
+import {
+  checkPrivateQuota,
+  reservePrivateStorage,
+} from '@/lib/services/storage-quota-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -186,7 +190,59 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 8. Ensure Google Drive integration is configured
+    // 7.5 Enforce 50 GB private storage quota for private documents
+    let storageReservation: { token: string; release: () => void } | null = null;
+    if (validatedData.visibility === 'private') {
+      const quotaCheck = await checkPrivateQuota(user.id, fileBuffer.length);
+      if (!quotaCheck.allowed) {
+        return NextResponse.json(
+          {
+            error: quotaCheck.error || 'Private storage quota exceeded.',
+            code: 'QUOTA_EXCEEDED',
+            quota: {
+              usedBytes: quotaCheck.usedBytes,
+              quotaBytes: quotaCheck.quotaBytes,
+              remainingBytes: quotaCheck.remainingBytes,
+              incomingBytes: quotaCheck.incomingBytes,
+              excessBytes: quotaCheck.excessBytes,
+              formattedUsed: quotaCheck.formattedUsed,
+              formattedRemaining: quotaCheck.formattedRemaining,
+              formattedQuota: quotaCheck.formattedQuota,
+            },
+          },
+          { status: 413 }
+        );
+      }
+
+      // Reserve storage atomically against race conditions
+      storageReservation = reservePrivateStorage(
+        user.id,
+        fileBuffer.length,
+        quotaCheck.usedBytes
+      );
+
+      if (!storageReservation) {
+        return NextResponse.json(
+          {
+            error: 'Concurrent private uploads exceeded remaining quota.',
+            code: 'QUOTA_EXCEEDED',
+            quota: {
+              usedBytes: quotaCheck.usedBytes,
+              quotaBytes: quotaCheck.quotaBytes,
+              remainingBytes: quotaCheck.remainingBytes,
+              incomingBytes: fileBuffer.length,
+              formattedUsed: quotaCheck.formattedUsed,
+              formattedRemaining: quotaCheck.formattedRemaining,
+              formattedQuota: quotaCheck.formattedQuota,
+            },
+          },
+          { status: 413 }
+        );
+      }
+    }
+
+    try {
+      // 8. Ensure Google Drive integration is configured
     if (!isGoogleDriveConfigured()) {
       return NextResponse.json(
         {
@@ -197,9 +253,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const safeFilename = sanitizeFilename(file.name);
+
     // 9. Upload file directly to designated Google Drive folder
     const driveUpload = await uploadFileToDrive({
-      filename: file.name,
+      filename: safeFilename,
       mimeType: fileValidation.detectedMimeType!,
       buffer: fileBuffer,
     });
@@ -245,7 +303,7 @@ export async function POST(request: NextRequest) {
         unit: validatedData.unit || null,
         material_type: validatedData.material_type,
         tags: validatedData.tags || [],
-        original_filename: file.name,
+        original_filename: safeFilename,
         file_size: fileBuffer.length,
         mime_type: fileValidation.detectedMimeType!,
         uploader_id: user.id,
@@ -286,7 +344,7 @@ export async function POST(request: NextRequest) {
             unit: validatedData.unit || null,
             material_type: validatedData.material_type,
             tags: validatedData.tags || [],
-            original_filename: file.name,
+            original_filename: safeFilename,
             file_size: fileBuffer.length,
             mime_type: fileValidation.detectedMimeType!,
             uploader_id: user.id,
@@ -316,20 +374,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json(
-      {
-        success: true,
-        message: 'Document uploaded and published successfully!',
-        document: {
-          id: newDoc.id,
-          title: newDoc.title,
-          drive_file_id: newDoc.drive_file_id,
-          status: newDoc.status,
-          material_type: newDoc.material_type,
+      return NextResponse.json(
+        {
+          success: true,
+          message: 'Document uploaded and published successfully!',
+          document: {
+            id: registeredDoc.id,
+            title: registeredDoc.title,
+            drive_file_id: registeredDoc.drive_file_id,
+            status: registeredDoc.status,
+            material_type: registeredDoc.material_type,
+          },
         },
-      },
-      { status: 201 }
-    );
+        { status: 201 }
+      );
+    } finally {
+      storageReservation?.release();
+    }
   } catch (err: unknown) {
     console.error('[DirectUpload] Unhandled error:', err);
     return NextResponse.json(

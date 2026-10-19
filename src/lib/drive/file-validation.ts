@@ -158,3 +158,55 @@ export function validateAcademicDocument(
     extension: matchedExt,
   };
 }
+
+/**
+ * Sanitizes uploaded filenames to prevent path traversal attacks, control character injection,
+ * and dangerous file system naming quirks.
+ */
+export function sanitizeFilename(rawFilename?: string | null): string {
+  if (!rawFilename || typeof rawFilename !== 'string') {
+    return 'document.pdf';
+  }
+
+  // 1. Remove any directory traversal path components (both UNIX / and Windows \)
+  const basename = rawFilename.replace(/^.*[\\\/]/, '').trim();
+
+  // 2. Remove null bytes and non-printable control characters
+  const withoutControls = basename.replace(/[\x00-\x1F\x7F-\x9F]/g, '');
+
+  // 3. Separate extension and name
+  const lastDotIndex = withoutControls.lastIndexOf('.');
+  let ext = '';
+  let name = withoutControls;
+
+  if (lastDotIndex > 0) {
+    name = withoutControls.substring(0, lastDotIndex);
+    ext = withoutControls.substring(lastDotIndex).toLowerCase();
+  }
+
+  // Ensure extension is in allowed set, default to .pdf if missing or unapproved
+  if (!ALLOWED_FILE_EXTENSIONS.includes(ext as (typeof ALLOWED_FILE_EXTENSIONS)[number])) {
+    ext = '.pdf';
+  }
+
+  // 4. Sanitize base name: replace unsafe characters with hyphens/underscores
+  let cleanName = name
+    .replace(/[^a-zA-Z0-9_\-\. ]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // Remove leading dots or dashes
+  cleanName = cleanName.replace(/^[.\-_]+/, '');
+
+  // Truncate to maximum safe length (120 chars for stem)
+  if (cleanName.length > 120) {
+    cleanName = cleanName.substring(0, 120).trim();
+  }
+
+  if (!cleanName) {
+    cleanName = 'document';
+  }
+
+  return `${cleanName}${ext}`;
+}
+

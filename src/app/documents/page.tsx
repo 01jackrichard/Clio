@@ -1,17 +1,41 @@
 import React, { Suspense } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, ArrowRight, X, ArrowUpRight, AlertCircle, BookOpen, Plus } from 'lucide-react';
-import { getDocuments } from '@/lib/services/document-service';
-import { DocumentFilters } from '@/components/document-filters';
+import {
+  ArrowLeft,
+  ArrowRight,
+  ArrowUpRight,
+  AlertCircle,
+  BookOpen,
+  Layers,
+  FileText,
+} from 'lucide-react';
+import {
+  getDocuments,
+  getCollections,
+  getSemesterDiscoveryData,
+  getDiscoveryOverview,
+} from '@/lib/services/document-service';
+import { createClient } from '@/lib/supabase/server';
 import { DocumentCard } from '@/components/document-card';
+import { CatalogueWelcome } from '@/components/catalogue-welcome';
+import { InstitutionSelector } from '@/components/discovery/institution-selector';
+import { BrowseModeSelector } from '@/components/discovery/browse-mode-selector';
+import { DiscoveryFilterBar } from '@/components/discovery/discovery-filter-bar';
+import { CollectionCard } from '@/components/discovery/collection-card';
+import { SemesterBrowser } from '@/components/discovery/semester-browser';
 import { config } from '@/lib/config';
 import { Container, buttonVariants } from '@/components/ui';
+import { resolveDisplayName } from '@/lib/utils';
+import { DocumentFilterParams, PaginatedResult, AcademicYearGroup } from '@/types';
+import { DocumentRecord, CollectionRecord } from '@/types/database';
 
 export const dynamic = 'force-dynamic';
 
 interface DocumentsPageProps {
   searchParams: Promise<{
     q?: string;
+    institution?: string;
+    mode?: 'all' | 'files' | 'collections' | 'semester';
     department?: string;
     regulation?: string;
     academic_year?: string;
@@ -21,6 +45,7 @@ interface DocumentsPageProps {
     unit?: string;
     material_type?: string;
     sort?: 'newest' | 'downloads' | 'title';
+    layout?: 'grid' | 'list';
     page?: string;
   }>;
 }
@@ -28,34 +53,98 @@ interface DocumentsPageProps {
 export default async function DocumentsPage({ searchParams }: DocumentsPageProps) {
   const params = await searchParams;
 
+  // 1. Fetch user display name for personalized greeting
+  let userDisplayName: string | null = null;
+  if (config.supabase.url && !config.supabase.url.includes('placeholder')) {
+    try {
+      const supabase = await createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('display_name')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        userDisplayName = resolveDisplayName(
+          profile?.display_name,
+          user.user_metadata,
+          user.email
+        );
+      }
+    } catch {
+      // Gracefully continue without breaking catalogue on auth error
+    }
+  }
+
+  // 2. Resolve Active Discovery State
   const page = Math.max(1, parseInt(params.page || '1', 10));
-  const result = await getDocuments({
+  const mode = params.mode || 'all';
+  const layout = params.layout || 'grid';
+  const isAllInstitutions = !params.institution || params.institution.toLowerCase() === 'all';
+
+  const filterParams: DocumentFilterParams = {
     ...params,
     page,
     limit: 12,
-  });
-
-  const activeFilters = [
-    params.q && { key: 'q', label: `Keyword: "${params.q}"` },
-    params.department && { key: 'department', label: params.department },
-    params.regulation && { key: 'regulation', label: `Regulation ${params.regulation}` },
-    params.academic_year && { key: 'academic_year', label: params.academic_year },
-    params.semester && { key: 'semester', label: params.semester },
-    params.subject && { key: 'subject', label: `Subject: ${params.subject}` },
-    params.subject_code && { key: 'subject_code', label: `Code: ${params.subject_code}` },
-    params.unit && { key: 'unit', label: `Unit: ${params.unit}` },
-    params.material_type && { key: 'material_type', label: params.material_type },
-  ].filter(Boolean) as { key: string; label: string }[];
-
-  const buildRemoveFilterUrl = (keyToRemove: string) => {
-    const newParams = new URLSearchParams();
-    Object.entries(params).forEach(([key, val]) => {
-      if (key !== keyToRemove && key !== 'page' && val) {
-        newParams.set(key, val);
-      }
-    });
-    return `/documents${newParams.toString() ? `?${newParams.toString()}` : ''}`;
   };
+
+  // 3. Fetch Overview Counts (for tab badges and headers)
+  const overview = await getDiscoveryOverview(filterParams);
+
+  // 4. Fetch Mode-Specific Data
+  let filesResult: PaginatedResult<DocumentRecord> = {
+    data: [],
+    total: 0,
+    page,
+    limit: 12,
+    totalPages: 0,
+  };
+  let collectionsResult: PaginatedResult<CollectionRecord> = {
+    data: [],
+    total: 0,
+    page,
+    limit: 12,
+    totalPages: 0,
+  };
+  let semesterData: AcademicYearGroup[] = [];
+
+  if (mode === 'semester') {
+    semesterData = await getSemesterDiscoveryData(filterParams);
+  } else if (mode === 'collections') {
+    collectionsResult = await getCollections(filterParams);
+  } else if (mode === 'files') {
+    filesResult = await getDocuments(filterParams);
+  } else {
+    // Mode 'all': fetch both documents and collections
+    const [docs, cols] = await Promise.all([
+      getDocuments(filterParams),
+      getCollections({ ...filterParams, limit: 6, page: 1 }),
+    ]);
+    filesResult = docs;
+    collectionsResult = cols;
+  }
+
+  const isUnconfigured = filesResult.unconfigured || collectionsResult.unconfigured;
+  const errorMsg = filesResult.error || collectionsResult.error;
+
+  // Total results and pagination target
+  const activeTotal =
+    mode === 'collections'
+      ? collectionsResult.total
+      : mode === 'files'
+      ? filesResult.total
+      : overview.totalAll;
+
+  const totalPages =
+    mode === 'collections'
+      ? collectionsResult.totalPages
+      : mode === 'files'
+      ? filesResult.totalPages
+      : filesResult.totalPages;
 
   const buildPageUrl = (targetPage: number) => {
     const newParams = new URLSearchParams();
@@ -70,234 +159,409 @@ export default async function DocumentsPage({ searchParams }: DocumentsPageProps
 
   return (
     <div className="bg-paper min-h-screen">
-      {/* 1. Refined Catalogue Hero */}
-      <header className="border-b border-ink/15 py-10 sm:py-14">
+      {/* 1. Personalized Wave Grid Welcome Section (Preserved) */}
+      <CatalogueWelcome displayName={userDisplayName} />
+
+      {/* 2. Compact Editorial Catalogue Introduction */}
+      <header id="archive-catalogue" className="border-b border-ink/15 py-8 sm:py-10">
         <Container>
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
-            <div className="max-w-2xl space-y-3">
+            <div className="max-w-2xl space-y-2.5">
               {/* Eyebrow Breadcrumb */}
               <div className="flex flex-wrap items-center gap-2.5 meta-mono text-xs text-ash">
-                <span className="text-oxblood font-semibold tracking-wider uppercase">Catalogue</span>
+                <span className="text-oxblood font-semibold tracking-wider uppercase">Discovery</span>
                 <span className="text-ink/20" aria-hidden="true">/</span>
-                <span className="tracking-wide uppercase">Academic Archive</span>
-                {result.total > 0 && (
+                <span className="tracking-wide uppercase">
+                  {overview.activeInstitution}
+                </span>
+                {overview.totalAll > 0 && (
                   <>
                     <span className="text-ink/20" aria-hidden="true">/</span>
                     <span className="text-ink font-medium">
-                      {result.total} {result.total === 1 ? 'Folio' : 'Folios'} Preserved
+                      {overview.totalAll} {overview.totalAll === 1 ? 'Resource' : 'Resources'} Preserved
                     </span>
                   </>
                 )}
               </div>
 
               {/* Editorial Display Heading */}
-              <h1 className="text-3xl sm:text-4xl lg:text-[2.65rem] font-display font-normal leading-[1.15] tracking-tight text-ink text-balance">
-                The Document Archive, <span className="display-italic text-ink/80">indexed & verified.</span>
-              </h1>
+              <h2 className="text-2xl sm:text-3xl lg:text-[2.25rem] font-display font-normal leading-[1.18] tracking-tight text-ink text-balance">
+                Academic Discovery System, <span className="display-italic text-ink/80">indexed & verified.</span>
+              </h2>
 
               {/* Scannable Supporting Summary */}
               <p className="text-xs sm:text-sm text-ash max-w-xl leading-relaxed">
-                Search and inspect lecture notes, curriculum folios, past examination solutions, and laboratory manuals verified for {config.app.collegeName}.
+                Explore curated course packs, verified lecture notes, semester syllabi, and laboratory manuals
+                {isAllInstitutions ? ' across all preserved institutions' : ` verified for ${overview.activeInstitution}`}.
               </p>
             </div>
-
-            {/* Integrated Hero Action */}
-            <Link
-              href="/upload"
-              className={buttonVariants({
-                variant: 'primary',
-                size: 'md',
-                className: 'gap-2 shrink-0 self-start sm:self-end font-medium',
-              })}
-            >
-              <Plus className="h-4 w-4" />
-              <span>Contribute Folio</span>
-            </Link>
           </div>
         </Container>
       </header>
 
-      {/* 2. Main Catalogue Content: Search & Filters -> Results */}
+      {/* 3. Main Discovery Experience: Institution Selector + Tabs + Filter Bar + Results */}
       <div className="py-8 sm:py-12">
-        <Container>
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10">
-            {/* Left Column: Filter Sidebar with Search */}
-            <aside className="lg:col-span-4">
-              <div className="sticky top-20">
-                <Suspense fallback={<div className="meta-mono text-xs text-ash">Loading archive filters...</div>}>
-                  <DocumentFilters />
-                </Suspense>
-              </div>
-            </aside>
+        <Container className="space-y-6">
+          {/* Institution Explorer Bar */}
+          <Suspense fallback={<div className="h-14 bg-card border border-ink/10 animate-pulse" />}>
+            <InstitutionSelector currentInstitution={params.institution} />
+          </Suspense>
 
-            {/* Right Column: Search Results */}
-            <main className="lg:col-span-8 space-y-6">
-              {/* Active Filter Chips */}
-              {activeFilters.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2 p-3 bg-card border border-ink/15 text-xs">
-                  <span className="meta-mono text-ash text-[11px] mr-1">Active Criteria:</span>
-                  {activeFilters.map((f) => (
-                    <Link
-                      key={f.key}
-                      href={buildRemoveFilterUrl(f.key)}
-                      className="group inline-flex items-center gap-1.5 px-2.5 py-1 bg-bone border border-ink/15 meta-mono text-ink hover:border-oxblood hover:text-oxblood transition-colors text-xs"
-                      title={`Remove ${f.label} filter`}
-                    >
-                      <span>{f.label}</span>
-                      <X className="w-3 h-3 text-ash group-hover:text-oxblood transition-colors" />
-                    </Link>
-                  ))}
+          {/* 4. Gooey Search and Academic Filters */}
+          <Suspense fallback={<div className="h-20 bg-card border border-ink/10 animate-pulse" />}>
+            <DiscoveryFilterBar currentMode={mode} currentLayout={layout} />
+          </Suspense>
+
+          {/* 5. Browse-Mode Selector and Results */}
+          <Suspense fallback={<div className="h-12 bg-card border border-ink/10 animate-pulse" />}>
+            <BrowseModeSelector
+              currentMode={mode}
+              totalAll={overview.totalAll}
+              totalFiles={overview.totalFiles}
+              totalCollections={overview.totalCollections}
+            />
+          </Suspense>
+
+          {/* Results Summary Header */}
+          {mode !== 'semester' && (
+            <div className="flex items-center justify-between meta-mono text-xs text-ash border-b border-ink/10 pb-2.5">
+              <span>
+                {activeTotal === 0
+                  ? '0 resources matching classification'
+                  : `Showing ${(page - 1) * 12 + 1}–${Math.min(
+                      page * 12,
+                      activeTotal
+                    )} of ${activeTotal} ${
+                      mode === 'collections'
+                        ? activeTotal === 1 ? 'collection' : 'collections'
+                        : activeTotal === 1 ? 'folio' : 'folios'
+                    }`}
+              </span>
+              <span className="hidden sm:inline">
+                Ordering: {params.sort === 'downloads' ? 'Most Downloaded' : params.sort === 'title' ? 'Title (A-Z)' : 'Newest Additions'}
+              </span>
+            </div>
+          )}
+
+          {/* Content States: Unconfigured, Error, Semester Browser, Collections, Files, or Unified */}
+          {isUnconfigured ? (
+            <div className="p-6 sm:p-8 border border-ink/20 bg-card text-left space-y-3">
+              <div className="flex items-center gap-2 text-oxblood meta-mono text-xs font-semibold">
+                <span className="uppercase">Configuration Notice</span>
+                <span className="text-ink/30">•</span>
+                <span className="text-ash font-normal">Database Connection Required</span>
+              </div>
+              <h3 className="font-display text-xl text-ink font-medium">Catalogue Database Unconfigured</h3>
+              <p className="text-xs sm:text-sm text-ash leading-relaxed max-w-lg">
+                Clio is ready. To display live approved folios and collections from Supabase, configure your environment credentials in <code className="meta-mono bg-paper px-1.5 py-0.5 border border-ink/20">.env.local</code>.
+              </p>
+            </div>
+          ) : errorMsg ? (
+            <div className="p-6 sm:p-8 border border-oxblood/30 bg-card text-left space-y-3">
+              <div className="flex items-center gap-2 text-oxblood meta-mono text-xs font-semibold">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>Unable to Retrieve Catalogue Folios</span>
+              </div>
+              <p className="text-xs sm:text-sm text-ash leading-relaxed max-w-lg">
+                {errorMsg}
+              </p>
+              <div>
+                <Link
+                  href="/documents"
+                  className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                >
+                  Retry Query
+                </Link>
+              </div>
+            </div>
+          ) : mode === 'semester' ? (
+            /* Mode 4: Semester Syllabus Tree */
+            <SemesterBrowser years={semesterData} institutionName={overview.activeInstitution} />
+          ) : mode === 'collections' ? (
+            /* Mode 3: Collections Only */
+            collectionsResult.data.length > 0 ? (
+              <div
+                className={
+                  layout === 'list'
+                    ? 'space-y-3.5'
+                    : collectionsResult.data.length <= 2
+                    ? 'grid grid-cols-1 md:grid-cols-2 gap-6'
+                    : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
+                }
+              >
+                {collectionsResult.data.map((col, idx) => (
+                  <CollectionCard
+                    key={col.id}
+                    collection={col}
+                    layout={layout}
+                    index={(page - 1) * 12 + idx + 1}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="p-8 sm:p-12 text-center border border-ink/15 bg-card space-y-3.5">
+                <div className="w-9 h-9 border border-ink/15 bg-bone flex items-center justify-center mx-auto text-ash">
+                  <Layers className="w-4 h-4 text-oxblood" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="font-display text-xl text-ink font-medium">
+                    No curated collections found
+                  </h3>
+                  <p className="text-xs sm:text-sm text-ash max-w-md mx-auto leading-relaxed">
+                    No course packs or semester bundles match the current criteria. Try resetting your search filters or assemble the first collection.
+                  </p>
+                </div>
+                <div className="pt-2 flex flex-wrap items-center justify-center gap-2.5">
                   <Link
-                    href="/documents"
-                    className="meta-mono text-oxblood hover:underline ml-auto text-xs"
+                    href="/documents?mode=collections"
+                    className={buttonVariants({ variant: 'outline', size: 'sm' })}
                   >
-                    Clear All
+                    Reset Filters
+                  </Link>
+                  <Link
+                    href="/upload"
+                    className={buttonVariants({ variant: 'primary', size: 'sm', className: 'gap-1.5' })}
+                  >
+                    <span>Create Collection</span>
+                    <ArrowUpRight className="w-3.5 h-3.5" />
                   </Link>
                 </div>
+              </div>
+            )
+          ) : mode === 'files' ? (
+            /* Mode 2: Individual Files Only */
+            filesResult.data.length > 0 ? (
+              <div
+                className={
+                  layout === 'list'
+                    ? 'space-y-3.5'
+                    : filesResult.data.length <= 2
+                    ? 'grid grid-cols-1 md:grid-cols-2 gap-6'
+                    : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
+                }
+              >
+                {filesResult.data.map((doc, idx) => (
+                  <DocumentCard
+                    key={doc.id}
+                    document={doc}
+                    layout={layout}
+                    showInstitution={isAllInstitutions}
+                    index={(page - 1) * 12 + idx + 1}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="p-8 sm:p-12 text-center border border-ink/15 bg-card space-y-3.5">
+                <div className="w-9 h-9 border border-ink/15 bg-bone flex items-center justify-center mx-auto text-ash">
+                  <BookOpen className="w-4 h-4 text-oxblood" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="font-display text-xl text-ink font-medium">
+                    No matching folios found
+                  </h3>
+                  <p className="text-xs sm:text-sm text-ash max-w-md mx-auto leading-relaxed">
+                    No academic materials currently match your search criteria. Try adjusting your keywords or contribute the first document.
+                  </p>
+                </div>
+                <div className="pt-2 flex flex-wrap items-center justify-center gap-2.5">
+                  <Link
+                    href="/documents?mode=files"
+                    className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                  >
+                    Reset Filters
+                  </Link>
+                  <Link
+                    href="/upload"
+                    className={buttonVariants({ variant: 'primary', size: 'sm', className: 'gap-1.5' })}
+                  >
+                    <span>Contribute Notes</span>
+                    <ArrowUpRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+              </div>
+            )
+          ) : (
+            /* Mode 1: All Materials (Unified View) */
+            filesResult.data.length === 0 && collectionsResult.data.length === 0 ? (
+              <div className="p-8 sm:p-12 text-center border border-ink/15 bg-card space-y-3.5">
+                <div className="w-9 h-9 border border-ink/15 bg-bone flex items-center justify-center mx-auto text-ash">
+                  <BookOpen className="w-4 h-4 text-oxblood" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="font-display text-xl text-ink font-medium">
+                    No matching resources found
+                  </h3>
+                  <p className="text-xs sm:text-sm text-ash max-w-md mx-auto leading-relaxed">
+                    No academic materials currently match your criteria. Try adjusting your keywords, switching institutions, or contribute notes.
+                  </p>
+                </div>
+                <div className="pt-2 flex flex-wrap items-center justify-center gap-2.5">
+                  <Link
+                    href="/documents"
+                    className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                  >
+                    Reset Filters
+                  </Link>
+                  <Link
+                    href="/upload"
+                    className={buttonVariants({ variant: 'primary', size: 'sm', className: 'gap-1.5' })}
+                  >
+                    <span>Contribute Notes</span>
+                    <ArrowUpRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-8">
+                {/* Featured Collections Section (if any match) */}
+                {collectionsResult.data.length > 0 && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between pb-2 border-b border-ink/10">
+                      <div className="flex items-center gap-2">
+                        <Layers className="w-4 h-4 text-oxblood" />
+                        <h4 className="font-display text-base sm:text-lg font-medium text-ink">
+                          Curated Academic Collections
+                        </h4>
+                        <span className="meta-mono text-[11px] text-ash bg-paper px-2 py-0.5 border border-ink/15">
+                          {collectionsResult.total} Course {collectionsResult.total === 1 ? 'Pack' : 'Packs'}
+                        </span>
+                      </div>
+                      <Link
+                        href={`/documents?mode=collections${params.institution ? `&institution=${params.institution}` : ''}`}
+                        className="meta-mono text-xs text-oxblood hover:underline flex items-center gap-1"
+                      >
+                        <span>View all collections</span>
+                        <ArrowRight className="w-3 h-3" />
+                      </Link>
+                    </div>
+
+                    <div
+                      className={
+                        layout === 'list'
+                          ? 'space-y-3.5'
+                          : collectionsResult.data.length <= 2
+                          ? 'grid grid-cols-1 md:grid-cols-2 gap-6'
+                          : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
+                      }
+                    >
+                      {collectionsResult.data.map((col, idx) => (
+                        <CollectionCard
+                          key={col.id}
+                          collection={col}
+                          layout={layout}
+                          index={idx + 1}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Individual Academic Folios */}
+                {filesResult.data.length > 0 && (
+                  <div className="space-y-4">
+                    {collectionsResult.data.length > 0 && (
+                      <div className="flex items-center justify-between pb-2 border-b border-ink/10 pt-2">
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-ash" />
+                          <h4 className="font-display text-base sm:text-lg font-medium text-ink">
+                            Individual Academic Folios
+                          </h4>
+                          <span className="meta-mono text-[11px] text-ash bg-paper px-2 py-0.5 border border-ink/15">
+                            {filesResult.total} {filesResult.total === 1 ? 'Folio' : 'Folios'}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    <div
+                      className={
+                        layout === 'list'
+                          ? 'space-y-3.5'
+                          : filesResult.data.length <= 2
+                          ? 'grid grid-cols-1 md:grid-cols-2 gap-6'
+                          : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
+                      }
+                    >
+                      {filesResult.data.map((doc, idx) => (
+                        <DocumentCard
+                          key={doc.id}
+                          document={doc}
+                          layout={layout}
+                          showInstitution={isAllInstitutions}
+                          index={(page - 1) * 12 + idx + 1}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          )}
+
+          {/* Pagination Controls */}
+          {mode !== 'semester' && totalPages > 1 && (
+            <nav
+              aria-label="Pagination Navigation"
+              className="pt-6 border-t border-ink/15 flex items-center justify-between"
+            >
+              {page > 1 ? (
+                <Link
+                  href={buildPageUrl(page - 1)}
+                  className={buttonVariants({
+                    variant: 'outline',
+                    size: 'sm',
+                    className: 'gap-1.5 meta-mono',
+                  })}
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Previous</span>
+                </Link>
+              ) : (
+                <span className="opacity-0 pointer-events-none">Prev</span>
               )}
 
-              {/* Results Summary Header */}
-              <div className="flex items-center justify-between meta-mono text-xs text-ash border-b border-ink/10 pb-2.5">
-                <span>
-                  {result.total === 0
-                    ? '0 folios matching classification'
-                    : `Showing ${(result.page - 1) * result.limit + 1}–${Math.min(
-                        result.page * result.limit,
-                        result.total
-                      )} of ${result.total} ${result.total === 1 ? 'folio' : 'folios'}`}
-                </span>
-                <span className="hidden sm:inline">
-                  Ordering: {params.sort === 'downloads' ? 'Most Downloaded' : params.sort === 'title' ? 'Title (A-Z)' : 'Newest Additions'}
-                </span>
+              <div className="flex items-center gap-1.5">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => {
+                  if (
+                    p === 1 ||
+                    p === totalPages ||
+                    (p >= page - 1 && p <= page + 1)
+                  ) {
+                    return (
+                      <Link
+                        key={p}
+                        href={buildPageUrl(p)}
+                        className={`w-8 h-8 flex items-center justify-center meta-mono text-xs transition-colors border ${
+                          p === page
+                            ? 'bg-ink text-paper border-ink font-semibold'
+                            : 'border-ink/20 text-ink hover:border-ink hover:bg-bone/40'
+                        }`}
+                      >
+                        {p}
+                      </Link>
+                    );
+                  }
+                  return null;
+                })}
               </div>
 
-              {/* Content States: Unconfigured, Error, Data Grid, or Empty */}
-              {result.unconfigured ? (
-                <div className="p-6 sm:p-8 border border-ink/20 bg-card text-left space-y-3">
-                  <div className="flex items-center gap-2 text-oxblood meta-mono text-xs font-semibold">
-                    <span className="uppercase">Configuration Notice</span>
-                    <span className="text-ink/30">•</span>
-                    <span className="text-ash font-normal">Database Connection Required</span>
-                  </div>
-                  <h2 className="font-display text-xl text-ink font-medium">Catalogue Database Unconfigured</h2>
-                  <p className="text-xs sm:text-sm text-ash leading-relaxed max-w-lg">
-                    Clio is ready. To display live approved folios from Supabase, configure your environment credentials in <code className="meta-mono bg-paper px-1.5 py-0.5 border border-ink/20">.env.local</code>.
-                  </p>
-                </div>
-              ) : result.error ? (
-                <div className="p-6 sm:p-8 border border-oxblood/30 bg-card text-left space-y-3">
-                  <div className="flex items-center gap-2 text-oxblood meta-mono text-xs font-semibold">
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    <span>Unable to Retrieve Catalogue Folios</span>
-                  </div>
-                  <p className="text-xs sm:text-sm text-ash leading-relaxed max-w-lg">
-                    {result.error}
-                  </p>
-                  <div>
-                    <Link
-                      href="/documents"
-                      className={buttonVariants({ variant: 'outline', size: 'sm' })}
-                    >
-                      Retry Query
-                    </Link>
-                  </div>
-                </div>
-              ) : result.data.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
-                  {result.data.map((doc, idx) => (
-                    <DocumentCard
-                      key={doc.id}
-                      document={doc}
-                      index={(page - 1) * result.limit + idx + 1}
-                    />
-                  ))}
-                </div>
+              {page < totalPages ? (
+                <Link
+                  href={buildPageUrl(page + 1)}
+                  className={buttonVariants({
+                    variant: 'outline',
+                    size: 'sm',
+                    className: 'gap-1.5 meta-mono',
+                  })}
+                >
+                  <span>Next</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
               ) : (
-                <div className="p-8 sm:p-12 text-center border border-ink/15 bg-card space-y-3.5">
-                  <div className="w-9 h-9 border border-ink/15 bg-bone flex items-center justify-center mx-auto text-ash">
-                    <BookOpen className="w-4 h-4 text-oxblood" />
-                  </div>
-                  <div className="space-y-1">
-                    <h2 className="font-display text-xl text-ink font-medium">
-                      No matching folios found
-                    </h2>
-                    <p className="text-xs sm:text-sm text-ash max-w-md mx-auto leading-relaxed">
-                      No academic materials currently match your search criteria. Try adjusting your keywords, resetting filters, or contribute the first document for this subject.
-                    </p>
-                  </div>
-                  <div className="pt-2 flex flex-wrap items-center justify-center gap-2.5">
-                    <Link
-                      href="/documents"
-                      className={buttonVariants({ variant: 'outline', size: 'sm' })}
-                    >
-                      Reset Filters
-                    </Link>
-                    <Link
-                      href="/upload"
-                      className={buttonVariants({ variant: 'primary', size: 'sm', className: 'gap-1.5' })}
-                    >
-                      <span>Contribute Notes</span>
-                      <ArrowUpRight className="w-3.5 h-3.5" />
-                    </Link>
-                  </div>
-                </div>
+                <span className="opacity-0 pointer-events-none">Next</span>
               )}
-
-              {/* Pagination Controls */}
-              {result.totalPages > 1 && (
-                <nav aria-label="Pagination Navigation" className="pt-6 border-t border-ink/15 flex items-center justify-between">
-                  {result.page > 1 ? (
-                    <Link
-                      href={buildPageUrl(result.page - 1)}
-                      className={buttonVariants({ variant: 'outline', size: 'sm', className: 'gap-1.5 meta-mono' })}
-                    >
-                      <ArrowLeft className="w-3.5 h-3.5" />
-                      <span>Previous</span>
-                    </Link>
-                  ) : (
-                    <span className="opacity-0 pointer-events-none">Prev</span>
-                  )}
-
-                  <div className="flex items-center gap-1.5">
-                    {Array.from({ length: result.totalPages }, (_, i) => i + 1).map((p) => {
-                      if (
-                        p === 1 ||
-                        p === result.totalPages ||
-                        (p >= result.page - 1 && p <= result.page + 1)
-                      ) {
-                        return (
-                          <Link
-                            key={p}
-                            href={buildPageUrl(p)}
-                            className={`w-8 h-8 flex items-center justify-center meta-mono text-xs transition-colors border ${
-                              p === result.page
-                                ? 'bg-ink text-paper border-ink font-semibold'
-                                : 'border-ink/20 text-ink hover:border-ink hover:bg-bone/40'
-                            }`}
-                          >
-                            {p}
-                          </Link>
-                        );
-                      }
-                      return null;
-                    })}
-                  </div>
-
-                  {result.page < result.totalPages ? (
-                    <Link
-                      href={buildPageUrl(result.page + 1)}
-                      className={buttonVariants({ variant: 'outline', size: 'sm', className: 'gap-1.5 meta-mono' })}
-                    >
-                      <span>Next</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </Link>
-                  ) : (
-                    <span className="opacity-0 pointer-events-none">Next</span>
-                  )}
-                </nav>
-              )}
-            </main>
-          </div>
+            </nav>
+          )}
         </Container>
       </div>
     </div>

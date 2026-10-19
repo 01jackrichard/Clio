@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 48" width="340" height="48">
+  <!-- Compact C Emblem (32x32 bounding box) -->
+  <g transform="translate(24, 24) scale(0.098)">
+    <path d="
+      M 116 -128
+      C 134 -128, 146 -114, 146 -98
+      C 146 -80, 130 -66, 112 -66
+      C 98 -66, 88 -76, 78 -88
+      C 52 -122, 10 -144, -40 -144
+      C -118 -144, -172 -88, -172 0
+      C -172 88, -118 144, -40 144
+      C 10 144, 52 122, 78 88
+      C 88 76, 98 66, 112 66
+      C 130 66, 146 80, 146 98
+      C 146 114, 134 128, 116 128
+      C 82 128, 54 168, -38 168
+      C -138 168, -204 96, -204 0
+      C -204 -96, -138 -168, -38 -168
+      C 54 -168, 82 -128, 116 -128
+      Z
+    " fill="#7A1F1D"/>
+    <!-- Column -->
+    <rect x="-140" y="-124" width="60" height="12" rx="2" fill="#7A1F1D"/>
+    <rect x="-126" y="-95" width="32" height="190" fill="#7A1F1D"/>
+    <rect x="-140" y="112" width="60" height="14" rx="2" fill="#7A1F1D"/>
+    <!-- Diamond -->
+    <polygon points="48,-28 76,0 48,28 20,0" fill="#7A1F1D"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="54" y="32" font-family="'Fraunces', Georgia, serif" font-size="26" font-weight="500" fill="#121110" letter-spacing="0.02em">Clio</text>
+
+  <!-- Fine Vertical Divider -->
+  <line x1="116" y1="14" x2="116" y2="34" stroke="#121110" stroke-opacity="0.18" stroke-width="1"/>
+
+  <!-- Subtitle -->
+  <text x="128" y="29" font-family="'Inter Tight', -apple-system, sans-serif" font-size="9.5" font-weight="600" fill="#7A1F1D" letter-spacing="0.22em">ACADEMIC ARCHIVE</text>
+</svg>

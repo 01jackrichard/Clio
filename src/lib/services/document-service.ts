@@ -1,7 +1,16 @@
 import { createClient } from '@/lib/supabase/server';
-import { DocumentFilterParams, PaginatedResult } from '@/types';
-import { DocumentRecord } from '@/types/database';
+import {
+  DocumentFilterParams,
+  PaginatedResult,
+  SemesterSubjectGroup,
+  SemesterGroup,
+  AcademicYearGroup,
+  DiscoveryOverview,
+} from '@/types';
+import { CollectionRecord, DocumentRecord } from '@/types/database';
 import { config } from '@/lib/config';
+import { resolveInstitutionFilter } from './institution-service';
+import { sanitizePostgrestFilter } from '@/lib/utils';
 
 interface DocumentWithProfileRow extends DocumentRecord {
   profiles?: {
@@ -32,7 +41,9 @@ export function isSchemaMismatchError(error: { code?: string; message?: string }
     msg.includes('profiles') ||
     msg.includes('visibility') ||
     msg.includes('subject_code') ||
-    msg.includes('regulation')
+    msg.includes('regulation') ||
+    msg.includes('institution') ||
+    msg.includes('collections')
   );
 }
 
@@ -70,6 +81,21 @@ async function fetchBaselineDocuments(
     };
   }
 
+  // If filtered for an institution other than primary on unmigrated DB, return zero results
+  if (params.institution && params.institution !== 'all') {
+    const target = resolveInstitutionFilter(params.institution);
+    const primaryName = config.app?.collegeName || 'Academic Institution';
+    if (target && target !== primaryName) {
+      return {
+        data: [],
+        total: 0,
+        page,
+        limit,
+        totalPages: 0,
+      };
+    }
+  }
+
   const buildQuery = (selectClause: string) => {
     let q = supabase
       .from('documents')
@@ -86,7 +112,10 @@ async function fetchBaselineDocuments(
       q = q.eq('semester', params.semester);
     }
     if (params.subject) {
-      q = q.ilike('subject', `%${params.subject.trim()}%`);
+      const safeSubject = sanitizePostgrestFilter(params.subject);
+      if (safeSubject) {
+        q = q.ilike('subject', `%${safeSubject}%`);
+      }
     }
     if (params.unit) {
       q = q.eq('unit', params.unit);
@@ -97,10 +126,12 @@ async function fetchBaselineDocuments(
 
     // Keyword search over baseline text columns only (title, subject, description)
     if (params.q && params.q.trim()) {
-      const searchTerm = params.q.trim();
-      q = q.or(
-        `title.ilike.%${searchTerm}%,subject.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`
-      );
+      const searchTerm = sanitizePostgrestFilter(params.q);
+      if (searchTerm) {
+        q = q.or(
+          `title.ilike.%${searchTerm}%,subject.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`
+        );
+      }
     }
 
     if (params.sort === 'downloads') {
@@ -122,6 +153,7 @@ async function fetchBaselineDocuments(
       const formattedData: DocumentRecord[] = (resWithProfiles.data as unknown as DocumentWithProfileRow[]).map(
         (row) => ({
           ...row,
+          institution: row.institution || config.app?.collegeName || 'Academic Institution',
           visibility: 'public',
           regulation: row.regulation || '2021',
           subject_code: row.subject_code || null,
@@ -150,6 +182,7 @@ async function fetchBaselineDocuments(
       const formattedData: DocumentRecord[] = (resPlain.data as unknown as DocumentRecord[]).map(
         (doc) => ({
           ...doc,
+          institution: doc.institution || config.app?.collegeName || 'Academic Institution',
           visibility: 'public',
           regulation: doc.regulation || '2021',
           subject_code: doc.subject_code || null,
@@ -209,12 +242,27 @@ export async function getDocuments(params: DocumentFilterParams): Promise<Pagina
       query = query.or('visibility.eq.public,visibility.is.null');
     }
 
+    // Institution filter
+    if (params.institution && params.institution !== 'all') {
+      const targetInst = resolveInstitutionFilter(params.institution);
+      if (targetInst) {
+        const primaryCollege = config.app?.collegeName || 'Academic Institution';
+        if (targetInst === primaryCollege) {
+          query = query.or(`institution.eq.${targetInst},institution.is.null`);
+        } else {
+          query = query.eq('institution', targetInst);
+        }
+      }
+    }
+
     // Search filter across title, subject, subject_code, description
     if (params.q && params.q.trim()) {
-      const searchTerm = params.q.trim();
-      query = query.or(
-        `title.ilike.%${searchTerm}%,subject.ilike.%${searchTerm}%,subject_code.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`
-      );
+      const searchTerm = sanitizePostgrestFilter(params.q);
+      if (searchTerm) {
+        query = query.or(
+          `title.ilike.%${searchTerm}%,subject.ilike.%${searchTerm}%,subject_code.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`
+        );
+      }
     }
 
     // Exact filters
@@ -231,10 +279,16 @@ export async function getDocuments(params: DocumentFilterParams): Promise<Pagina
       query = query.eq('semester', params.semester);
     }
     if (params.subject) {
-      query = query.ilike('subject', `%${params.subject.trim()}%`);
+      const safeSubject = sanitizePostgrestFilter(params.subject);
+      if (safeSubject) {
+        query = query.ilike('subject', `%${safeSubject}%`);
+      }
     }
     if (params.subject_code) {
-      query = query.ilike('subject_code', `%${params.subject_code.trim()}%`);
+      const safeCode = sanitizePostgrestFilter(params.subject_code);
+      if (safeCode) {
+        query = query.ilike('subject_code', `%${safeCode}%`);
+      }
     }
     if (params.unit) {
       query = query.eq('unit', params.unit);
@@ -281,6 +335,7 @@ export async function getDocuments(params: DocumentFilterParams): Promise<Pagina
 
     const formattedData: DocumentRecord[] = ((data as unknown as DocumentWithProfileRow[]) || []).map((row) => ({
       ...row,
+      institution: row.institution || config.app.collegeName,
       visibility: row.visibility || 'public',
       regulation: row.regulation || '2021',
       subject_code: row.subject_code || null,
@@ -447,3 +502,283 @@ export async function getUserFavorites(userId: string): Promise<DocumentRecord[]
     return [];
   }
 }
+
+/**
+ * Fetch approved public collections with filtering, search, and pagination.
+ */
+export async function getCollections(
+  params: DocumentFilterParams
+): Promise<PaginatedResult<CollectionRecord>> {
+  const page = Math.max(1, Number(params.page) || 1);
+  const limit = Math.min(50, Math.max(1, Number(params.limit) || 12));
+  const offset = (page - 1) * limit;
+
+  if (!config.supabase.url || config.supabase.url.includes('placeholder')) {
+    return {
+      data: [],
+      total: 0,
+      page,
+      limit,
+      totalPages: 0,
+      unconfigured: true,
+    };
+  }
+
+  try {
+    const supabase = await createClient();
+
+    let query = supabase
+      .from('collections')
+      .select('*, profiles(display_name)', { count: 'exact' })
+      .eq('visibility', 'public');
+
+    // Institution filter
+    if (params.institution && params.institution !== 'all') {
+      const targetInst = resolveInstitutionFilter(params.institution);
+      if (targetInst) {
+        const primaryCollege = config.app?.collegeName || 'Academic Institution';
+        if (targetInst === primaryCollege) {
+          query = query.or(`institution.eq.${targetInst},institution.is.null`);
+        } else {
+          query = query.eq('institution', targetInst);
+        }
+      }
+    }
+
+    if (params.department) {
+      query = query.eq('department', params.department);
+    }
+    if (params.regulation) {
+      query = query.eq('regulation', params.regulation);
+    }
+    if (params.academic_year) {
+      query = query.eq('academic_year', params.academic_year);
+    }
+    if (params.semester) {
+      query = query.eq('semester', params.semester);
+    }
+    if (params.q && params.q.trim()) {
+      const searchTerm = sanitizePostgrestFilter(params.q);
+      if (searchTerm) {
+        query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
+      }
+    }
+
+    query = query.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
+
+    const { data, count, error } = await query;
+
+    if (error) {
+      if (isSchemaMismatchError(error)) {
+        // Fallback without profiles or if collections not yet present
+        try {
+          let fallbackQuery = supabase
+            .from('collections')
+            .select('*', { count: 'exact' })
+            .eq('visibility', 'public');
+
+          if (params.department) fallbackQuery = fallbackQuery.eq('department', params.department);
+          if (params.regulation) fallbackQuery = fallbackQuery.eq('regulation', params.regulation);
+          if (params.semester) fallbackQuery = fallbackQuery.eq('semester', params.semester);
+          if (params.q && params.q.trim()) {
+            const safeFallbackQ = sanitizePostgrestFilter(params.q);
+            if (safeFallbackQ) {
+              fallbackQuery = fallbackQuery.or(
+                `title.ilike.%${safeFallbackQ}%,description.ilike.%${safeFallbackQ}%`
+              );
+            }
+          }
+
+          const fbRes = await fallbackQuery
+            .order('created_at', { ascending: false })
+            .range(offset, offset + limit - 1);
+
+          if (fbRes.data && !fbRes.error) {
+            const total = fbRes.count ?? fbRes.data.length;
+            return {
+              data: (fbRes.data as CollectionRecord[]).map((c) => ({
+                ...c,
+                institution: c.institution || config.app?.collegeName || 'Academic Institution',
+                owner_name: 'Classmate',
+                document_count: 0,
+              })),
+              total,
+              page,
+              limit,
+              totalPages: Math.ceil(total / limit),
+            };
+          }
+        } catch {
+          // Safe fallback
+        }
+        return { data: [], total: 0, page, limit, totalPages: 0 };
+      }
+
+      console.warn('Collection query error:', error.message);
+      return { data: [], total: 0, page, limit, totalPages: 0, error: error.message };
+    }
+
+    type ColWithProfile = CollectionRecord & { profiles?: { display_name?: string | null } | null };
+    const rawCollections = (data as unknown as ColWithProfile[]) || [];
+
+    // Get document counts for each collection
+    const collectionIds = rawCollections.map((c) => c.id);
+    let countsMap: Record<string, number> = {};
+
+    if (collectionIds.length > 0) {
+      try {
+        const { data: countData } = await supabase
+          .from('documents')
+          .select('collection_id')
+          .in('collection_id', collectionIds)
+          .eq('status', 'approved')
+          .or('visibility.eq.public,visibility.is.null');
+
+        if (countData) {
+          countsMap = countData.reduce((acc, row) => {
+            if (row.collection_id) {
+              acc[row.collection_id] = (acc[row.collection_id] || 0) + 1;
+            }
+            return acc;
+          }, {} as Record<string, number>);
+        }
+      } catch {
+        // Safe fallback if collection_id column does not exist
+      }
+    }
+
+    const formattedData: CollectionRecord[] = rawCollections.map((col) => ({
+      ...col,
+      institution: col.institution || config.app?.collegeName || 'Academic Institution',
+      owner_name: col.profiles?.display_name || 'Classmate',
+      document_count: countsMap[col.id] || 0,
+    }));
+
+    const total = count ?? formattedData.length;
+    return {
+      data: formattedData,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Failed to query collections';
+    return { data: [], total: 0, page, limit, totalPages: 0, error: msg };
+  }
+}
+
+/**
+ * Hierarchical academic semester discovery grouping.
+ * Maps: Academic Year (1st, 2nd, 3rd, 4th) -> Semester (1-8) -> Subjects -> Materials (Documents & Collections)
+ */
+export async function getSemesterDiscoveryData(
+  params: DocumentFilterParams
+): Promise<AcademicYearGroup[]> {
+  const [docsResult, collectionsResult] = await Promise.all([
+    getDocuments({ ...params, limit: 100, page: 1 }),
+    getCollections({ ...params, limit: 100, page: 1 }),
+  ]);
+
+  const docs = docsResult.data || [];
+  const collections = collectionsResult.data || [];
+
+  const yearDefinitions: { year: string; title: string; semesters: string[] }[] = [
+    { year: '1st Year', title: '1st Year · Foundation & Core Sciences', semesters: ['Semester 1', 'Semester 2'] },
+    { year: '2nd Year', title: '2nd Year · Professional Engineering Discipline', semesters: ['Semester 3', 'Semester 4'] },
+    { year: '3rd Year', title: '3rd Year · Advanced Specializations & Systems', semesters: ['Semester 5', 'Semester 6'] },
+    { year: '4th Year', title: '4th Year · Electives, Capstones & Synthesis', semesters: ['Semester 7', 'Semester 8'] },
+  ];
+
+  return yearDefinitions.map((yearDef) => {
+    let yearTotalResources = 0;
+
+    const semesters: SemesterGroup[] = yearDef.semesters.map((semStr, idx) => {
+      const semNum = parseInt(semStr.replace(/\D/g, ''), 10) || idx + 1;
+
+      const semDocs = docs.filter((d) => d.semester === semStr);
+      const semCols = collections.filter((c) => c.semester === semStr);
+
+      const subjectMap: Record<string, SemesterSubjectGroup> = {};
+
+      for (const doc of semDocs) {
+        const key = (doc.subject_code || doc.subject || 'General Studies').trim();
+        if (!subjectMap[key]) {
+          subjectMap[key] = {
+            code: doc.subject_code || undefined,
+            name: doc.subject || 'General Studies',
+            department: doc.department,
+            semester: semStr,
+            regulation: doc.regulation || '2021',
+            institution: doc.institution || config.app?.collegeName || 'Academic Institution',
+            documents: [],
+            collections: [],
+            totalResources: 0,
+          };
+        }
+        subjectMap[key].documents.push(doc);
+        subjectMap[key].totalResources += 1;
+      }
+
+      for (const col of semCols) {
+        const key = (col.title || 'Collection Bundle').trim();
+        if (!subjectMap[key]) {
+          subjectMap[key] = {
+            name: col.title,
+            department: col.department || 'Multidisciplinary',
+            semester: semStr,
+            regulation: col.regulation || '2021',
+            institution: col.institution || config.app?.collegeName || 'Academic Institution',
+            documents: [],
+            collections: [],
+            totalResources: 0,
+          };
+        }
+        subjectMap[key].collections.push(col);
+        subjectMap[key].totalResources += 1;
+      }
+
+      const subjects = Object.values(subjectMap).sort((a, b) => b.totalResources - a.totalResources);
+      const semTotalResources = semDocs.length + semCols.length;
+      yearTotalResources += semTotalResources;
+
+      return {
+        semester: semStr,
+        semesterNumber: semNum,
+        subjects,
+        totalResources: semTotalResources,
+      };
+    });
+
+    return {
+      year: yearDef.year,
+      title: yearDef.title,
+      semesters,
+      totalResources: yearTotalResources,
+    };
+  });
+}
+
+/**
+ * Overview statistics and counts for all discovery modes.
+ */
+export async function getDiscoveryOverview(
+  params: DocumentFilterParams
+): Promise<DiscoveryOverview> {
+  const [docsRes, collectionsRes] = await Promise.all([
+    getDocuments({ ...params, page: 1, limit: 1 }),
+    getCollections({ ...params, page: 1, limit: 1 }),
+  ]);
+
+  const totalFiles = docsRes.total;
+  const totalCollections = collectionsRes.total;
+  const activeInstitution = resolveInstitutionFilter(params.institution) || 'All Institutions';
+
+  return {
+    totalAll: totalFiles + totalCollections,
+    totalFiles,
+    totalCollections,
+    activeInstitution,
+  };
+}
+

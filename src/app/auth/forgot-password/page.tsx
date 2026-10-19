@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Mail, ArrowLeft, ArrowUpRight, CheckCircle2, AlertCircle } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { config } from '@/lib/config';
-import { Button, Input, Card, CardContent } from '@/components/ui';
+import { Button, Input, Card, CardContent, ClioEmblem } from '@/components/ui';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -65,9 +65,12 @@ export default function ForgotPasswordPage() {
           {/* Header */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="font-display text-3xl text-ink font-medium tracking-tight">
-                Clio
-              </span>
+              <div className="inline-flex items-center gap-2">
+                <ClioEmblem size={28} className="text-oxblood" />
+                <span className="font-display text-3xl text-ink font-medium tracking-tight">
+                  Clio
+                </span>
+              </div>
               <span className="meta-mono text-oxblood">Recovery</span>
             </div>
             <h1 className="font-display text-2xl text-ink font-medium tracking-tight">

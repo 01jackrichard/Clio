@@ -6,6 +6,7 @@ import {
   FolderResult,
 } from '@/lib/drive/google-drive-service';
 import { config } from '@/lib/config';
+import { escapeHtml } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,8 +37,9 @@ export async function GET(request: NextRequest) {
     const errorParam = searchParams.get('error');
 
     if (errorParam) {
+      const safeError = escapeHtml(errorParam);
       return new NextResponse(
-        `<html><body style="font-family:sans-serif;padding:40px;background:#0E1624;color:#FFF;"><h2>Google Drive Authorization Cancelled</h2><p style="color:#F87171;">${errorParam}</p><p><a href="/admin" style="color:#60A5FA;">Return to Admin Console</a></p></body></html>`,
+        `<html><body style="font-family:sans-serif;padding:40px;background:#0E1624;color:#FFF;"><h2>Google Drive Authorization Cancelled</h2><p style="color:#F87171;">${safeError}</p><p><a href="/admin" style="color:#60A5FA;">Return to Admin Console</a></p></body></html>`,
         { headers: { 'Content-Type': 'text/html; charset=utf-8' }, status: 400 }
       );
     }
@@ -100,27 +102,27 @@ export async function GET(request: NextRequest) {
         ? `<div class="status-badge ${folderResult.isNew ? 'new' : 'reused'}">
              ${
                folderResult.isNew
-                 ? `✦ Created Dedicated Folder: ${folderResult.name}`
-                 : `✓ Verified Existing Folder: ${folderResult.name} (Reused, No Duplicates)`
+                 ? `✦ Created Dedicated Folder: ${escapeHtml(folderResult.name)}`
+                 : `✓ Verified Existing Folder: ${escapeHtml(folderResult.name)} (Reused, No Duplicates)`
              }
            </div>
            <p style="margin-top:0;">
              Because Clio created this dedicated folder through the API under the <code>drive.file</code> scope,
              Clio has full permission to deposit uploaded student documents inside it.
            </p>`
-        : `<div class="status-badge error">⚠ Folder initialization error: ${folderError}</div>`
+        : `<div class="status-badge error">⚠ Folder initialization error: ${escapeHtml(folderError)}</div>`
     }
 
     <!-- CONFIGURATION TO COPY -->
     <p><strong>Action Required:</strong> Copy the following into your local <code>.env.local</code> configuration:</p>
 
     <div class="code-block"># Google Drive Destination Folder (created via Drive API)
-GOOGLE_DRIVE_FOLDER_ID="${folderResult ? folderResult.id : 'your-folder-id'}"
+GOOGLE_DRIVE_FOLDER_ID="${folderResult ? escapeHtml(folderResult.id) : 'your-folder-id'}"
 ${
   refreshToken
     ? `
 # Server-side Offline Refresh Token
-GOOGLE_REFRESH_TOKEN="${refreshToken}"`
+GOOGLE_REFRESH_TOKEN="${escapeHtml(refreshToken)}"`
     : `
 # (Keep your existing GOOGLE_REFRESH_TOKEN; Google did not re-issue one because this account was previously authorized)`
 }</div>
@@ -141,8 +143,9 @@ GOOGLE_REFRESH_TOKEN="${refreshToken}"`
     });
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : 'Unknown authorization error';
+    const safeErrorMsg = escapeHtml(errorMsg);
     return new NextResponse(
-      `<html><body style="font-family:sans-serif;padding:40px;background:#0E1624;color:#FFF;"><h2>OAuth Token Exchange Failed</h2><p style="color:#F87171;">${errorMsg}</p><p><a href="/admin" style="color:#60A5FA;">Return to Admin Console</a></p></body></html>`,
+      `<html><body style="font-family:sans-serif;padding:40px;background:#0E1624;color:#FFF;"><h2>OAuth Token Exchange Failed</h2><p style="color:#F87171;">${safeErrorMsg}</p><p><a href="/admin" style="color:#60A5FA;">Return to Admin Console</a></p></body></html>`,
       { headers: { 'Content-Type': 'text/html; charset=utf-8' }, status: 500 }
     );
   }

@@ -75,10 +75,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Check for existing document with this submitted URL or already published canonical ID
+    const safeDriveUrl = drive_url.replace(/["'\\]/g, '');
+    const safeFileId = fileId.replace(/["'\\]/g, '');
     const { data: duplicate } = await supabase
       .from('documents')
       .select('id, title, status')
-      .or(`submitted_drive_url.eq.${drive_url},drive_file_id.eq.${fileId}`)
+      .or(`submitted_drive_url.eq."${safeDriveUrl}",drive_file_id.eq."${safeFileId}"`)
       .maybeSingle();
 
     if (duplicate) {

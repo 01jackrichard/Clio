@@ -6,12 +6,13 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Mail, Lock, Eye, EyeOff, ArrowUpRight, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { config } from '@/lib/config';
-import { Button, Input, Card, CardContent } from '@/components/ui';
+import { sanitizeRedirectUrl } from '@/lib/utils';
+import { Button, Input, Card, CardContent, ClioEmblem } from '@/components/ui';
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get('redirectTo') || '/dashboard';
+  const redirectTo = sanitizeRedirectUrl(searchParams.get('redirectTo'), '/dashboard');
   const registeredMsg = searchParams.get('registered');
 
   const [email, setEmail] = useState('');
@@ -78,7 +79,8 @@ function LoginForm() {
         {/* Brand Header */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <Link href="/" className="inline-block group" aria-label="Clio home">
+            <Link href="/" className="inline-flex items-center gap-2 group" aria-label="Clio home">
+              <ClioEmblem size={28} className="text-oxblood transition-transform duration-200 group-hover:scale-105" />
               <span className="font-display text-3xl text-ink font-medium tracking-tight">
                 Clio
               </span>
@@ -197,7 +199,11 @@ function LoginForm() {
         <div className="pt-4 border-t border-ink/10 flex items-baseline justify-between text-xs">
           <span className="text-ash">New scholar to Clio?</span>
           <Link
-            href="/auth/register"
+            href={
+              redirectTo && redirectTo !== '/dashboard'
+                ? `/auth/register?redirectTo=${encodeURIComponent(redirectTo)}`
+                : '/auth/register'
+            }
             className="font-medium text-ink hover:text-oxblood transition-colors link-underline"
           >
             Register student account →

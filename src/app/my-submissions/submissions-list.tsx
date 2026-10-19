@@ -21,6 +21,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
+import { ShareResourceButton } from '@/components/sharing/share-resource-button';
 
 interface MySubmissionsListProps {
   initialSubmissions: DocumentRecord[];
@@ -289,6 +290,17 @@ export function MySubmissionsList({
                   </div>
 
                   <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                    {doc.status === 'approved' && (
+                      <ShareResourceButton
+                        resourceType="document"
+                        resourceId={doc.id}
+                        resourceTitle={doc.title}
+                        variant="compact"
+                        isOwner={true}
+                        label="Share"
+                      />
+                    )}
+
                     <Link
                       href={`/documents/${doc.id}`}
                       className={buttonVariants({ variant: 'secondary', size: 'sm' })}

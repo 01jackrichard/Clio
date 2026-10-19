@@ -32,7 +32,7 @@ import {
   MaterialTypeValue,
   Unit,
 } from '@/lib/constants';
-import { formatBytes } from '@/lib/utils';
+import { formatBytes, cn } from '@/lib/utils';
 import {
   Button,
   Input,
@@ -44,6 +44,9 @@ import {
   Container,
 } from '@/components/ui';
 import { SubjectAutocomplete } from '@/components/subject-autocomplete';
+import { PrivateStoragePanel } from '@/components/storage/private-storage-panel';
+import { RadialGlowButton } from '@/components/ui/radial-glow-button';
+import { ShareResourceButton } from '@/components/sharing/share-resource-button';
 
 export default function UploadPage() {
   // Mode selection: 'individual' vs 'collection'
@@ -86,6 +89,16 @@ export default function UploadPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitStage, setSubmitStage] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [quotaErrorData, setQuotaErrorData] = useState<{
+    usedBytes: number;
+    quotaBytes: number;
+    remainingBytes: number;
+    incomingBytes: number;
+    excessBytes?: number;
+    formattedUsed: string;
+    formattedRemaining: string;
+    formattedQuota: string;
+  } | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [completedDoc, setCompletedDoc] = useState<{
     id: string;
@@ -225,6 +238,7 @@ export default function UploadPage() {
     setSubmitStage(0);
     setSubmitting(true);
     setError(null);
+    setQuotaErrorData(null);
 
     try {
       let targetCollectionId = selectedCollectionId;
@@ -290,9 +304,15 @@ export default function UploadPage() {
       const data = await res.json();
 
       if (!res.ok) {
+        if (data.code === 'QUOTA_EXCEEDED' && data.quota) {
+          setQuotaErrorData(data.quota);
+        } else {
+          setQuotaErrorData(null);
+        }
         throw new Error(data.error || 'Failed to upload document');
       }
 
+      setQuotaErrorData(null);
       setCompletedDoc({
         id: data.document.id,
         title: data.document.title,
@@ -418,6 +438,14 @@ export default function UploadPage() {
                   </Link>
                 )}
 
+                <ShareResourceButton
+                  resourceType="document"
+                  resourceId={completedDoc.id}
+                  resourceTitle={completedDoc.title}
+                  isOwner={true}
+                  label="Share via ShareSheet"
+                />
+
                 <Button
                   variant="outline"
                   size="md"
@@ -458,10 +486,67 @@ export default function UploadPage() {
             {error && (
               <div
                 role="alert"
-                className="p-4 bg-oxblood/5 border border-oxblood/20 text-oxblood text-xs flex items-start gap-2.5 leading-relaxed"
+                className={cn(
+                  'p-4 sm:p-5 border text-xs leading-relaxed space-y-3',
+                  quotaErrorData
+                    ? 'bg-rose-950/5 border-rose-900/30 text-rose-950 shadow-xs'
+                    : 'bg-oxblood/5 border-oxblood/20 text-oxblood'
+                )}
               >
-                <AlertCircle className="w-4 h-4 text-oxblood shrink-0 mt-0.5" aria-hidden="true" />
-                <span className="flex-1">{error}</span>
+                <div className="flex items-start gap-2.5">
+                  <AlertCircle
+                    className="w-4 h-4 text-oxblood shrink-0 mt-0.5"
+                    aria-hidden="true"
+                  />
+                  <div className="flex-1 space-y-1">
+                    <span className="font-semibold block">
+                      {quotaErrorData ? 'Private Storage Quota Exceeded' : 'Submission Notice'}
+                    </span>
+                    <span className="text-ash block leading-relaxed">{error}</span>
+                  </div>
+                </div>
+
+                {quotaErrorData && (
+                  <div className="pt-3 border-t border-ink/10 space-y-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 meta-mono text-[11px] p-3 bg-paper border border-ink/10">
+                      <div>
+                        <span className="text-ash block">Used Storage:</span>
+                        <span className="font-medium text-ink">
+                          {quotaErrorData.formattedUsed}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-ash block">Remaining:</span>
+                        <span className="font-medium text-oxblood">
+                          {quotaErrorData.formattedRemaining}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-ash block">Total Quota:</span>
+                        <span className="font-medium text-ink">
+                          {quotaErrorData.formattedQuota || '50 GB'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-ash block">File Size:</span>
+                        <span className="font-medium text-ink">
+                          {formatBytes(quotaErrorData.incomingBytes)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                      <p className="text-[11px] text-ash max-w-md">
+                        Switching this upload to <strong>Public Catalogue</strong> allows free deposit without counting against your private 50 GB allowance.
+                      </p>
+                      <Link href="/upgrade">
+                        <RadialGlowButton className="min-w-[140px] min-h-[36px] py-1.5 px-3.5 text-xs">
+                          Upgrade to Clio Plus ↗
+                        </RadialGlowButton>
+                      </Link>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -936,10 +1021,13 @@ export default function UploadPage() {
                   </div>
                 </div>
 
-                {/* Password Fields when Private */}
+                {/* Password Fields & Quota Meter when Private */}
                 {visibility === 'private' && (
-                  <div className="p-4 bg-oxblood/5 border border-oxblood/20 space-y-4">
-                    <div className="flex items-start gap-2">
+                  <div className="space-y-4">
+                    <PrivateStoragePanel compact={true} />
+
+                    <div className="p-4 bg-oxblood/5 border border-oxblood/20 space-y-4">
+                      <div className="flex items-start gap-2">
                       <ShieldCheck className="w-4 h-4 text-oxblood shrink-0 mt-0.5" />
                       <p className="text-xs text-ash leading-relaxed">
                         Private assets are encrypted using salted PBKDF2-SHA512. Drive access links remain
@@ -976,7 +1064,8 @@ export default function UploadPage() {
                       />
                     </div>
                   </div>
-                )}
+                </div>
+              )}
               </CardContent>
             </Card>
 

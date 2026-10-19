@@ -5,6 +5,8 @@ import {
   ArrowUpRight,
 } from 'lucide-react';
 import SculptureHero from '@/components/ui/liquid-sculpture-hero';
+import { ScrollDissolveReveal } from '@/components/ui/scroll-dissolve-reveal';
+import { SolarSystem } from '@/components/ui/solar-system';
 import { DEPARTMENTS } from '@/lib/constants';
 import { getDocuments } from '@/lib/services/document-service';
 import { DocumentCard } from '@/components/document-card';
@@ -75,6 +77,73 @@ export default async function HomePage() {
           </div>
         </div>
       </div>
+
+      {/* ─────────────────────────────────────────────────────────────
+          2.5 SCROLL DISSOLVE REVEAL — ARCHIVAL METAMORPHOSIS
+          From scattered physical notes to lasting indexed knowledge
+         ───────────────────────────────────────────────────────────── */}
+      <section id="archive-reveal" className="relative bg-paper pt-14 sm:pt-20 pb-8 sm:pb-12 border-b border-ink/15">
+        <div className="container-editorial">
+          <div className="max-w-3xl mx-auto text-center space-y-4">
+            <div className="inline-flex items-center gap-3">
+              <span className="meta-mono text-oxblood font-semibold tracking-widest text-xs uppercase">
+                KNOWLEDGE, PRESERVED.
+              </span>
+              <span className="block h-px w-8 bg-ink/30" />
+              <span className="label-eyebrow text-xs">ARCHIVAL METAMORPHOSIS</span>
+            </div>
+
+            <h2 className="font-display text-3xl sm:text-4xl md:text-5xl leading-[1.08] tracking-[-0.03em] text-ink text-balance">
+              From scattered notes to <span className="display-italic text-oxblood">lasting knowledge.</span>
+            </h2>
+
+            <p className="text-sm sm:text-base leading-relaxed text-ash max-w-xl mx-auto">
+              Before research notes and lecture materials are catalogued, they live scattered across notebooks and desks. Clio collects, verifies, and indexes each folio into a structured institutional archive.
+            </p>
+
+            <div className="pt-2 flex items-center justify-center gap-2 text-xs meta-mono text-ash/80">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-oxblood animate-pulse" />
+              <span>Scroll down to reveal the digital transformation</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <ScrollDissolveReveal
+        imageFront="/images/clio/scattered-study-notes.webp"
+        imageBack="/images/clio/clio-archive-preview.webp"
+        containerClassName="h-[220vh] border-b border-ink/15 bg-[#141312]"
+        className="h-screen w-full flex items-center justify-center"
+      >
+        {/* Archival Overlay Labels */}
+        <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-4 sm:p-8 md:p-12">
+          {/* Top Archival Header Strip */}
+          <div className="flex items-center justify-between meta-mono text-xs text-paper/85 bg-ink/60 backdrop-blur-xs px-4 py-2 border border-paper/10 max-w-full">
+            <span className="flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-oxblood" />
+              <span className="text-paper font-semibold tracking-wider">CLIO ARCHIVE</span>
+              <span className="text-paper/40">/</span>
+              <span className="hidden sm:inline text-paper/70">METAMORPHOSIS</span>
+            </span>
+            <span className="text-paper/60 uppercase tracking-widest text-[10px] sm:text-xs">
+              Scroll Reveal
+            </span>
+          </div>
+
+          {/* Bottom Archival Legend */}
+          <div className="flex items-center justify-between meta-mono text-xs text-paper/85 bg-ink/60 backdrop-blur-xs px-4 py-2.5 border border-paper/10 max-w-full">
+            <span className="flex items-center gap-2">
+              <span className="text-oxblood font-bold">01</span>
+              <span className="text-paper/90">Scattered Physical Notes</span>
+            </span>
+            <span className="text-paper/40 hidden sm:inline">───────────►</span>
+            <span className="flex items-center gap-2">
+              <span className="text-oxblood font-bold">02</span>
+              <span className="text-paper/90">Indexed Institutional Archive</span>
+            </span>
+          </div>
+        </div>
+      </ScrollDissolveReveal>
 
       {/* ─────────────────────────────────────────────────────────────
           3. SECTION 01 — ACADEMIC INDEX & SEARCH CONSOLE
@@ -523,7 +592,23 @@ export default async function HomePage() {
       </section>
 
       {/* ─────────────────────────────────────────────────────────────
-          8. SECTION 05 — ACADEMIC PULLQUOTE
+          8. SECTION 05 — THE CLIO ECOSYSTEM (3D SOLAR SYSTEM)
+          Interactive planetary orbit visualization of Clio's connected
+          academic resources, institutions, and student community.
+         ───────────────────────────────────────────────────────────── */}
+      <section id="academic-ecosystem" className="py-20 sm:py-28 bg-paper border-t border-ink/15 overflow-hidden">
+        <div className="container-editorial">
+          <SolarSystem
+            eyebrow="THE CLIO ECOSYSTEM"
+            title="An archive of connected knowledge."
+            description="Discover how academic resources, subjects, collections, and student contributions come together in one searchable archive."
+            className="w-full"
+          />
+        </div>
+      </section>
+
+      {/* ─────────────────────────────────────────────────────────────
+          9. SECTION 06 — ACADEMIC PULLQUOTE
           Matching Reference Section 05 Pullquote
          ───────────────────────────────────────────────────────────── */}
       <section className="py-20 sm:py-28 bg-bone border-t border-ink/15">

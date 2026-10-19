@@ -5,6 +5,7 @@ import { Download, Bookmark, Flag } from 'lucide-react';
 import { formatBytes } from '@/lib/utils';
 import { ReportModal } from '@/components/report-modal';
 import { Button } from '@/components/ui';
+import { ShareResourceButton } from '@/components/sharing/share-resource-button';
 
 interface DocumentActionsProps {
   documentId: string;
@@ -12,6 +13,7 @@ interface DocumentActionsProps {
   originalFilename: string;
   fileSize?: number | null;
   downloadCount: number;
+  isOwner?: boolean;
 }
 
 export function DocumentActions({
@@ -19,6 +21,7 @@ export function DocumentActions({
   documentTitle,
   fileSize,
   downloadCount: initialDownloadCount,
+  isOwner = true,
 }: DocumentActionsProps) {
   const [downloadCount, setDownloadCount] = useState(initialDownloadCount);
   const [downloading, setDownloading] = useState(false);
@@ -113,6 +116,14 @@ export function DocumentActions({
             className={`w-4 h-4 ${isFavorited ? 'fill-oxblood text-oxblood' : 'text-ink'}`}
           />
         </Button>
+
+        <ShareResourceButton
+          resourceType="document"
+          resourceId={documentId}
+          resourceTitle={documentTitle}
+          variant="icon"
+          isOwner={isOwner}
+        />
 
         <Button
           onClick={() => setReportModalOpen(true)}

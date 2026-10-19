@@ -41,6 +41,8 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith('/upload') ||
     pathname.startsWith('/my-submissions') ||
     pathname.startsWith('/favorites') ||
+    pathname.startsWith('/shared-with-me') ||
+    pathname.startsWith('/upgrade') ||
     pathname.startsWith('/profile');
 
   // Protected admin routes

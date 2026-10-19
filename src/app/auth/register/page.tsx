@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   Mail,
   Lock,
@@ -22,9 +23,13 @@ import {
   AcademicYear,
 } from '@/lib/constants';
 import { registerSchema } from '@/lib/validations/auth';
-import { Button, Input, Select, Card, CardContent } from '@/components/ui';
+import { sanitizeRedirectUrl } from '@/lib/utils';
+import { Button, Input, Select, Card, CardContent, ClioEmblem } from '@/components/ui';
 
-export default function RegisterPage() {
+function RegisterForm() {
+  const searchParams = useSearchParams();
+  const rawRedirect = searchParams.get('redirectTo') || searchParams.get('redirect') || '';
+  const redirectTo = rawRedirect ? sanitizeRedirectUrl(rawRedirect, '') : '';
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [department, setDepartment] = useState<Department>(DEPARTMENTS[0]);
@@ -132,7 +137,8 @@ export default function RegisterPage() {
           {/* Brand Header */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <Link href="/" className="inline-block group" aria-label="Clio home">
+              <Link href="/" className="inline-flex items-center gap-2 group" aria-label="Clio home">
+                <ClioEmblem size={28} className="text-oxblood transition-transform duration-200 group-hover:scale-105" />
                 <span className="font-display text-3xl text-ink font-medium tracking-tight">
                   Clio
                 </span>
@@ -170,7 +176,11 @@ export default function RegisterPage() {
 
               <div className="pt-2">
                 <Link
-                  href="/auth/login"
+                  href={
+                    redirectTo
+                      ? `/auth/login?redirectTo=${encodeURIComponent(redirectTo)}`
+                      : '/auth/login'
+                  }
                   className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-ink text-paper text-xs font-medium hover:bg-oxblood transition-colors"
                 >
                   <span>Proceed to Sign In</span>
@@ -352,7 +362,11 @@ export default function RegisterPage() {
           <div className="pt-4 border-t border-ink/10 flex items-baseline justify-between text-xs">
             <span className="text-ash">Already registered with Clio?</span>
             <Link
-              href="/auth/login"
+              href={
+                redirectTo
+                  ? `/auth/login?redirectTo=${encodeURIComponent(redirectTo)}`
+                  : '/auth/login'
+              }
               className="font-medium text-ink hover:text-oxblood transition-colors link-underline"
             >
               Sign in to your account →
@@ -361,5 +375,19 @@ export default function RegisterPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex-1 flex items-center justify-center p-12 bg-paper meta-mono text-xs text-ash">
+          Loading scholar registration...
+        </div>
+      }
+    >
+      <RegisterForm />
+    </Suspense>
   );
 }
