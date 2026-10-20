@@ -216,7 +216,6 @@ export function CatalogueWelcome({
                   </span>
                   <Link
                     href="/auth/login?redirectTo=/documents"
-                    prefetch={true}
                     className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-ink hover:text-oxblood transition-colors"
                   >
                     <span>Sign in to save & contribute</span>

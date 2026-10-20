@@ -39,19 +39,20 @@ let cachedNavbarProfile: UserProfile | null = null;
 export function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
-  const [prevPathname, setPrevPathname] = useState(pathname);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(() => cachedNavbarProfile);
   const [loading, setLoading] = useState(() => !cachedNavbarProfile);
   const [mounted, setMounted] = useState(false);
 
-  // Close overlays synchronously when route changes without cascading effect re-renders
-  if (prevPathname !== pathname) {
-    setPrevPathname(pathname);
-    setUserDropdownOpen(false);
-    setMobileMenuOpen(false);
-  }
+  // Close overlays when route changes
+  useEffect(() => {
+    const handle = requestAnimationFrame(() => {
+      setUserDropdownOpen(false);
+      setMobileMenuOpen(false);
+    });
+    return () => cancelAnimationFrame(handle);
+  }, [pathname]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -230,7 +231,6 @@ export function Navbar() {
           <div className="flex items-center gap-7 lg:gap-9">
             <Link
               href="/"
-              prefetch={true}
               className="flex items-center gap-2.5 group focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-oxblood"
               aria-label="Clio home"
             >
@@ -255,7 +255,6 @@ export function Navbar() {
                   <Link
                     key={link.href}
                     href={link.href}
-                    prefetch={true}
                     className={cn(
                       'group relative py-2 font-sans text-[14.5px] leading-5 tracking-[-0.01em] transition-colors duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-oxblood focus-visible:ring-offset-2',
                       active ? 'text-ink font-semibold' : 'text-ash hover:text-ink font-medium'
@@ -280,7 +279,6 @@ export function Navbar() {
             {/* Prominent Upload Action */}
             <Link
               href="/upload"
-              prefetch={true}
               className={cn(
                 'group inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium border transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-oxblood focus-visible:ring-offset-2',
                 pathname === '/upload'
@@ -295,7 +293,6 @@ export function Navbar() {
             {/* Compact Upgrade to Clio Plus Action */}
             <Link
               href="/upgrade"
-              prefetch={true}
               className={cn(
                 'group inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-oxblood focus-visible:ring-offset-2 whitespace-nowrap',
                 pathname === '/upgrade'
@@ -348,7 +345,6 @@ export function Navbar() {
                     <div className="py-1">
                       <Link
                         href="/upgrade"
-                        prefetch={true}
                         onClick={() => setUserDropdownOpen(false)}
                         className="flex items-center justify-between px-4 py-2 text-xs text-oxblood hover:bg-bone transition-colors font-medium focus-visible:bg-bone focus-visible:outline-none"
                       >
@@ -362,7 +358,6 @@ export function Navbar() {
                       </Link>
                       <Link
                         href="/dashboard"
-                        prefetch={true}
                         onClick={() => setUserDropdownOpen(false)}
                         className="flex items-center gap-2.5 px-4 py-2 text-xs text-ink/80 hover:bg-bone hover:text-ink transition-colors focus-visible:bg-bone focus-visible:text-ink focus-visible:outline-none"
                       >
@@ -372,7 +367,6 @@ export function Navbar() {
 
                       <Link
                         href="/my-submissions"
-                        prefetch={true}
                         onClick={() => setUserDropdownOpen(false)}
                         className="flex items-center gap-2.5 px-4 py-2 text-xs text-ink/80 hover:bg-bone hover:text-ink transition-colors focus-visible:bg-bone focus-visible:text-ink focus-visible:outline-none"
                       >
@@ -382,7 +376,6 @@ export function Navbar() {
 
                       <Link
                         href="/favorites"
-                        prefetch={true}
                         onClick={() => setUserDropdownOpen(false)}
                         className="flex items-center gap-2.5 px-4 py-2 text-xs text-ink/80 hover:bg-bone hover:text-ink transition-colors focus-visible:bg-bone focus-visible:text-ink focus-visible:outline-none"
                       >
@@ -392,7 +385,6 @@ export function Navbar() {
 
                       <Link
                         href="/shared-with-me"
-                        prefetch={true}
                         onClick={() => setUserDropdownOpen(false)}
                         className="flex items-center gap-2.5 px-4 py-2 text-xs text-ink/80 hover:bg-bone hover:text-ink transition-colors focus-visible:bg-bone focus-visible:text-ink focus-visible:outline-none"
                       >
@@ -402,7 +394,6 @@ export function Navbar() {
 
                       <Link
                         href="/profile"
-                        prefetch={true}
                         onClick={() => setUserDropdownOpen(false)}
                         className="flex items-center gap-2.5 px-4 py-2 text-xs text-ink/80 hover:bg-bone hover:text-ink transition-colors focus-visible:bg-bone focus-visible:text-ink focus-visible:outline-none"
                       >
@@ -414,7 +405,6 @@ export function Navbar() {
                         <div className="border-t border-ink/10 my-1 pt-1">
                           <Link
                             href="/admin"
-                            prefetch={true}
                             onClick={() => setUserDropdownOpen(false)}
                             className="flex items-center gap-2.5 px-4 py-2 text-xs text-oxblood hover:bg-bone font-medium transition-colors focus-visible:bg-bone focus-visible:outline-none"
                           >
@@ -449,14 +439,12 @@ export function Navbar() {
               <div className="flex items-center gap-2">
                 <Link
                   href="/auth/login"
-                  prefetch={true}
                   className="px-3 py-1.5 text-xs text-ash hover:text-ink transition-colors font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-oxblood"
                 >
                   Sign In
                 </Link>
                 <Link
                   href="/auth/register"
-                  prefetch={true}
                   className="px-3 py-1.5 text-xs bg-ink text-paper hover:bg-oxblood transition-colors font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-oxblood"
                 >
                   Register
@@ -469,7 +457,6 @@ export function Navbar() {
           <div className="flex md:hidden items-center gap-2">
             <Link
               href="/upload"
-              prefetch={true}
               className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium border border-ink/20 bg-card text-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-oxblood"
             >
               <UploadCloud className="w-3.5 h-3.5 text-oxblood" />
@@ -496,7 +483,6 @@ export function Navbar() {
           <nav className="flex flex-col gap-1">
             <Link
               href="/documents"
-              prefetch={true}
               onClick={() => setMobileMenuOpen(false)}
               className={cn(
                 'min-h-[44px] flex items-center py-2 text-sm font-medium border-b border-ink/10 transition-colors',
@@ -508,14 +494,13 @@ export function Navbar() {
 
             <Link
               href="/upgrade"
-              prefetch={true}
               onClick={() => setMobileMenuOpen(false)}
               className={cn(
                 'min-h-[44px] flex items-center justify-between py-2 text-sm font-medium border-b border-ink/10 transition-colors',
                 isActive('/upgrade') ? 'text-oxblood font-semibold' : 'text-oxblood hover:text-oxblood'
               )}
             >
-              <span className="flex items-center gap-2">
+              <span className="flex items-center gap-2.5">
                 <Sparkles className="w-3.5 h-3.5 text-oxblood" />
                 <span>Upgrade to Clio Plus</span>
               </span>
@@ -528,7 +513,6 @@ export function Navbar() {
               <>
                 <Link
                   href="/my-submissions"
-                  prefetch={true}
                   onClick={() => setMobileMenuOpen(false)}
                   className={cn(
                     'min-h-[44px] flex items-center py-2 text-sm font-medium border-b border-ink/10 transition-colors',
@@ -540,7 +524,6 @@ export function Navbar() {
 
                 <Link
                   href="/favorites"
-                  prefetch={true}
                   onClick={() => setMobileMenuOpen(false)}
                   className={cn(
                     'min-h-[44px] flex items-center py-2 text-sm font-medium border-b border-ink/10 transition-colors',
@@ -552,7 +535,6 @@ export function Navbar() {
 
                 <Link
                   href="/shared-with-me"
-                  prefetch={true}
                   onClick={() => setMobileMenuOpen(false)}
                   className={cn(
                     'min-h-[44px] flex items-center py-2 text-sm font-medium border-b border-ink/10 transition-colors',
@@ -564,7 +546,6 @@ export function Navbar() {
 
                 <Link
                   href="/dashboard"
-                  prefetch={true}
                   onClick={() => setMobileMenuOpen(false)}
                   className={cn(
                     'min-h-[44px] flex items-center py-2 text-sm font-medium border-b border-ink/10 transition-colors',
@@ -576,7 +557,6 @@ export function Navbar() {
 
                 <Link
                   href="/profile"
-                  prefetch={true}
                   onClick={() => setMobileMenuOpen(false)}
                   className={cn(
                     'min-h-[44px] flex items-center py-2 text-sm font-medium border-b border-ink/10 transition-colors',
@@ -589,7 +569,6 @@ export function Navbar() {
                 {profile.role === 'admin' && (
                   <Link
                     href="/admin"
-                    prefetch={true}
                     onClick={() => setMobileMenuOpen(false)}
                     className="min-h-[44px] flex items-center py-2 text-sm font-medium text-oxblood border-b border-ink/10 gap-2"
                   >
@@ -611,7 +590,6 @@ export function Navbar() {
               <div className="grid grid-cols-2 gap-2">
                 <Link
                   href="/auth/login"
-                  prefetch={true}
                   onClick={() => setMobileMenuOpen(false)}
                   className="w-full min-h-[44px] flex items-center justify-center text-xs font-medium border border-ink/20 bg-card text-ink hover:border-ink transition-colors"
                 >
@@ -619,7 +597,6 @@ export function Navbar() {
                 </Link>
                 <Link
                   href="/auth/register"
-                  prefetch={true}
                   onClick={() => setMobileMenuOpen(false)}
                   className="w-full min-h-[44px] flex items-center justify-center text-xs font-medium bg-ink text-paper hover:bg-oxblood transition-colors"
                 >

@@ -167,6 +167,7 @@ export function DiscoveryFilterBar({
           {/* Gooey Search Component */}
           <div className="flex-1 flex items-center justify-start min-h-[42px] relative z-30">
             <GooeySearch
+              key={q}
               placeholder="Search subject, course code (e.g. 22CS394), or folio..."
               buttonLabel={q ? `Search: "${q}"` : 'Search Folios'}
               defaultValue={q}

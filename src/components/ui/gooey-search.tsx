@@ -191,19 +191,13 @@ export function GooeySearch({
     }
   }, [step]);
 
-  // Sync defaultValue updates during render
-  const [prevDefaultValue, setPrevDefaultValue] = useState(defaultValue);
-  if (defaultValue !== prevDefaultValue) {
-    setPrevDefaultValue(defaultValue);
-    setSearchText(defaultValue);
-  }
 
   useEffect(() => {
     let cancelled = false;
 
     const run = async () => {
       if (!debouncedQuery || !debouncedQuery.trim()) {
-        setResults([]);
+        setResults((prev) => (prev.length === 0 ? prev : []));
         setIsLoading(false);
         return;
       }
@@ -276,16 +270,13 @@ export function GooeySearch({
         }}
       >
         {/* Results — positioned to float smoothly below the expanded bar */}
-        <AnimatePresence mode="popLayout">
-          <motion.div
-            key="results-wrapper"
+        {results.length > 0 && (
+          <div
             role="listbox"
             aria-label="Search results"
             style={{ position: "relative", zIndex: 50 }}
-            exit={{ scale: 0, opacity: 0 }}
-            transition={{ delay: isUnsupported ? 0.3 : 0.8, duration: 0.4 }}
           >
-            <AnimatePresence mode="popLayout">
+            <AnimatePresence>
               {results.map((item, index) => (
                 <motion.div
                   key={item}
@@ -342,8 +333,8 @@ export function GooeySearch({
                 </motion.div>
               ))}
             </AnimatePresence>
-          </motion.div>
-        </AnimatePresence>
+          </div>
+        )}
 
         {/* Morphing search button */}
         <motion.div
