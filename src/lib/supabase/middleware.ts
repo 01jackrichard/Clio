@@ -7,6 +7,44 @@ export async function updateSession(request: NextRequest) {
     request,
   });
 
+  const pathname = request.nextUrl.pathname;
+
+  // Protected student routes
+  const isStudentRoute =
+    pathname.startsWith('/dashboard') ||
+    pathname.startsWith('/upload') ||
+    pathname.startsWith('/my-submissions') ||
+    pathname.startsWith('/favorites') ||
+    pathname.startsWith('/shared-with-me') ||
+    pathname.startsWith('/upgrade') ||
+    pathname.startsWith('/profile');
+
+  // Protected admin routes
+  const isAdminRoute = pathname.startsWith('/admin');
+
+  // Auth routes (redirect logged-in users away from login/register)
+  const isAuthRoute =
+    pathname.startsWith('/auth/login') ||
+    pathname.startsWith('/auth/register') ||
+    pathname.startsWith('/auth/forgot-password');
+
+  // Fast-path: Check for Supabase session cookies before making remote network calls
+  const allCookies = request.cookies.getAll();
+  const hasAuthCookies = allCookies.some(
+    (c) => c.name.startsWith('sb-') || c.name.includes('auth-token') || c.name.includes('supabase')
+  );
+
+  if (!hasAuthCookies) {
+    if (isStudentRoute || isAdminRoute) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/auth/login';
+      url.searchParams.set('redirectTo', pathname);
+      return NextResponse.redirect(url);
+    }
+    // Guest accessing public page: bypass remote network round-trip entirely
+    return supabaseResponse;
+  }
+
   const supabase = createServerClient(
     config.supabase.url || 'https://placeholder.supabase.co',
     config.supabase.publishableKey || 'placeholder-publishable-key',
@@ -32,27 +70,6 @@ export async function updateSession(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  const pathname = request.nextUrl.pathname;
-
-  // Protected student routes
-  const isStudentRoute =
-    pathname.startsWith('/dashboard') ||
-    pathname.startsWith('/upload') ||
-    pathname.startsWith('/my-submissions') ||
-    pathname.startsWith('/favorites') ||
-    pathname.startsWith('/shared-with-me') ||
-    pathname.startsWith('/upgrade') ||
-    pathname.startsWith('/profile');
-
-  // Protected admin routes
-  const isAdminRoute = pathname.startsWith('/admin');
-
-  // Auth routes (redirect logged-in users away from login/register)
-  const isAuthRoute =
-    pathname.startsWith('/auth/login') ||
-    pathname.startsWith('/auth/register') ||
-    pathname.startsWith('/auth/forgot-password');
 
   if (!user && (isStudentRoute || isAdminRoute)) {
     const url = request.nextUrl.clone();

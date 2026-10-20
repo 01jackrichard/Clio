@@ -15,7 +15,8 @@ import {
   getSemesterDiscoveryData,
   getDiscoveryOverview,
 } from '@/lib/services/document-service';
-import { getCatalogueMetrics } from '@/lib/services/catalogue-stats-service';
+import { getCatalogueMetrics, CatalogueAuthStats } from '@/lib/services/catalogue-stats-service';
+import { resolveInstitutionFilter } from '@/lib/services/institution-service';
 import { DocumentCard } from '@/components/document-card';
 import { CatalogueWelcome } from '@/components/catalogue-welcome';
 import { InstitutionSelector } from '@/components/discovery/institution-selector';
@@ -24,7 +25,7 @@ import { DiscoveryFilterBar } from '@/components/discovery/discovery-filter-bar'
 import { CollectionCard } from '@/components/discovery/collection-card';
 import { SemesterBrowser } from '@/components/discovery/semester-browser';
 import { Container, buttonVariants } from '@/components/ui';
-import { DocumentFilterParams, PaginatedResult, AcademicYearGroup } from '@/types';
+import { DocumentFilterParams, PaginatedResult, AcademicYearGroup, DiscoveryOverview } from '@/types';
 import { DocumentRecord, CollectionRecord } from '@/types/database';
 
 export const dynamic = 'force-dynamic';
@@ -51,11 +52,7 @@ interface DocumentsPageProps {
 export default async function DocumentsPage({ searchParams }: DocumentsPageProps) {
   const params = await searchParams;
 
-  // 1. Authoritative stats & personalized greeting calculation
-  const catalogueStats = await getCatalogueMetrics();
-  const userDisplayName = catalogueStats.displayName;
-
-  // 2. Resolve Active Discovery State
+  // 1. Resolve Active Discovery State
   const page = Math.max(1, parseInt(params.page || '1', 10));
   const mode = params.mode || 'all';
   const layout = params.layout || 'grid';
@@ -67,10 +64,7 @@ export default async function DocumentsPage({ searchParams }: DocumentsPageProps
     limit: 12,
   };
 
-  // 3. Fetch Overview Counts (for tab badges and headers)
-  const overview = await getDiscoveryOverview(filterParams);
-
-  // 4. Fetch Mode-Specific Data
+  // 2. Concurrently fetch metrics, overview counts, and mode-specific data in parallel
   let filesResult: PaginatedResult<DocumentRecord> = {
     data: [],
     total: 0,
@@ -86,22 +80,70 @@ export default async function DocumentsPage({ searchParams }: DocumentsPageProps
     totalPages: 0,
   };
   let semesterData: AcademicYearGroup[] = [];
+  let overview: DiscoveryOverview = {
+    totalAll: 0,
+    totalFiles: 0,
+    totalCollections: 0,
+    activeInstitution: resolveInstitutionFilter(params.institution) || 'All Institutions',
+  };
+  let catalogueStats: CatalogueAuthStats;
 
   if (mode === 'semester') {
-    semesterData = await getSemesterDiscoveryData(filterParams);
+    const [stats, ov, sem] = await Promise.all([
+      getCatalogueMetrics(),
+      getDiscoveryOverview(filterParams),
+      getSemesterDiscoveryData(filterParams),
+    ]);
+    catalogueStats = stats;
+    overview = ov;
+    semesterData = sem;
   } else if (mode === 'collections') {
-    collectionsResult = await getCollections(filterParams);
+    const [stats, cols, docsCountRes] = await Promise.all([
+      getCatalogueMetrics(),
+      getCollections(filterParams),
+      getDocuments({ ...filterParams, page: 1, limit: 1 }),
+    ]);
+    catalogueStats = stats;
+    collectionsResult = cols;
+    overview = {
+      totalAll: docsCountRes.total + cols.total,
+      totalFiles: docsCountRes.total,
+      totalCollections: cols.total,
+      activeInstitution: resolveInstitutionFilter(params.institution) || 'All Institutions',
+    };
   } else if (mode === 'files') {
-    filesResult = await getDocuments(filterParams);
+    const [stats, docs, colsCountRes] = await Promise.all([
+      getCatalogueMetrics(),
+      getDocuments(filterParams),
+      getCollections({ ...filterParams, page: 1, limit: 1 }),
+    ]);
+    catalogueStats = stats;
+    filesResult = docs;
+    overview = {
+      totalAll: docs.total + colsCountRes.total,
+      totalFiles: docs.total,
+      totalCollections: colsCountRes.total,
+      activeInstitution: resolveInstitutionFilter(params.institution) || 'All Institutions',
+    };
   } else {
-    // Mode 'all': fetch both documents and collections
-    const [docs, cols] = await Promise.all([
+    // Mode 'all': fetch documents, collections, and stats concurrently in a single round-trip
+    const [stats, docs, cols] = await Promise.all([
+      getCatalogueMetrics(),
       getDocuments(filterParams),
       getCollections({ ...filterParams, limit: 6, page: 1 }),
     ]);
+    catalogueStats = stats;
     filesResult = docs;
     collectionsResult = cols;
+    overview = {
+      totalAll: docs.total + cols.total,
+      totalFiles: docs.total,
+      totalCollections: cols.total,
+      activeInstitution: resolveInstitutionFilter(params.institution) || 'All Institutions',
+    };
   }
+
+  const userDisplayName = catalogueStats.displayName;
 
   const isUnconfigured = filesResult.unconfigured || collectionsResult.unconfigured;
   const errorMsg = filesResult.error || collectionsResult.error;

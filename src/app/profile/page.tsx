@@ -28,16 +28,19 @@ export default async function ProfilePage() {
     redirect('/auth/login?redirectTo=/profile');
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single();
+  const [profileRes, storageUsage] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single(),
+    getStorageUsage(user.id),
+  ]);
 
+  const profile = profileRes.data;
   const displayName = profile?.display_name || user.email?.split('@')[0] || 'Scholar';
   const initialLetter = displayName.charAt(0).toUpperCase();
   const isProfileIncomplete = !profile?.department || !profile?.academic_year;
-  const storageUsage = await getStorageUsage(user.id);
 
   return (
     <Container className="py-8 sm:py-12 space-y-10">

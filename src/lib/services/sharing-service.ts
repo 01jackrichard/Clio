@@ -686,31 +686,30 @@ export async function getSharedWithMeResources(
     const docIds = grantList.filter((g) => g.resource_type === 'document').map((g) => g.resource_id);
     const colIds = grantList.filter((g) => g.resource_type === 'collection').map((g) => g.resource_id);
 
-    // Fetch documents
-    let docsMap = new Map<string, Record<string, unknown>>();
-    if (docIds.length > 0) {
-      const { data: docs } = await adminClient
-        .from('documents')
-        .select('id, title, description, department, semester, subject, subject_code, material_type, original_filename, file_size, uploader_id, profiles!uploader_id(display_name)')
-        .in('id', docIds);
+    // Parallelize fetching documents and collections
+    const [docsRes, colsRes] = await Promise.all([
+      docIds.length > 0
+        ? adminClient
+            .from('documents')
+            .select('id, title, description, department, semester, subject, subject_code, material_type, original_filename, file_size, uploader_id, profiles!uploader_id(display_name)')
+            .in('id', docIds)
+        : Promise.resolve({ data: null }),
+      colIds.length > 0
+        ? adminClient
+            .from('collections')
+            .select('id, title, slug, description, department, semester, user_id, owner_id, profiles!user_id(display_name)')
+            .in('id', colIds)
+        : Promise.resolve({ data: null }),
+    ]);
 
-      if (docs) {
-        docsMap = new Map(docs.map((d) => [d.id, d as Record<string, unknown>]));
-      }
-    }
-
-    // Fetch collections
-    let colsMap = new Map<string, Record<string, unknown>>();
-    if (colIds.length > 0) {
-      const { data: cols } = await adminClient
-        .from('collections')
-        .select('id, title, slug, description, department, semester, user_id, owner_id, profiles!user_id(display_name)')
-        .in('id', colIds);
-
-      if (cols) {
-        colsMap = new Map(cols.map((c) => [c.id, c as Record<string, unknown>]));
-      }
-    }
+    const docs = docsRes.data;
+    const cols = colsRes.data;
+    const docsMap = new Map<string, Record<string, unknown>>(
+      docs ? docs.map((d) => [d.id, d as Record<string, unknown>]) : []
+    );
+    const colsMap = new Map<string, Record<string, unknown>>(
+      cols ? cols.map((c) => [c.id, c as Record<string, unknown>]) : []
+    );
 
     for (const grant of grantList) {
       if (grant.resource_type === 'document') {

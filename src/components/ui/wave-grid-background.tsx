@@ -107,14 +107,14 @@ function overrideVertexShader(vertexShader: string): string {
 
           float window = exp( -( relDist * relDist ) / ( uWaveWidth * uWaveWidth ) );
           float fade   = exp( -td.b / uFadeTime );
-          float atten  = 1.0 / ( 1.0 + dist * 0.065 + dist * dist * 0.0022 );
+          float atten  = 1.0 / ( 1.0 + dist * 0.040 + dist * dist * 0.0010 );
           float weight = fade * window * atten * td.a;
 
           waveHeight  += weight * cos( uWaveFreq * relDist );
           totalWeight += weight;
         }
 
-        waveHeight /= max( totalWeight, 1.0 );
+        waveHeight /= max( pow( totalWeight, 0.42 ), 1.0 );
 
         float displacement = clamp( waveHeight * uAmplitude, -uMaxHeight, uMaxHeight );
         transformed.y += displacement;
@@ -138,15 +138,15 @@ export interface WaveGridBackgroundProps {
   colorHighlight?: string;
   /** Subtle shadow / depth color for crevices and wave troughs. Defaults to #D8CFC4. */
   colorShadow?: string;
-  /** Peak displacement multiplier. Defaults to 0.52. */
+  /** Peak displacement multiplier. Defaults to 0.64. */
   waveAmplitude?: number;
-  /** Wavefront expansion speed (world units/sec). Defaults to 4.6. */
+  /** Wavefront expansion speed (world units/sec). Defaults to 4.8. */
   waveSpeed?: number;
   /** Spatial oscillation frequency. Defaults to 0.95. */
   waveFrequency?: number;
-  /** Gaussian half-width of the wave ring. Defaults to 4.4. */
+  /** Gaussian half-width of the wave ring. Defaults to 5.0. */
   waveWidth?: number;
-  /** Hard clamp on displacement height. Defaults to 0.58. */
+  /** Hard clamp on displacement height. Defaults to 0.68. */
   waveMaxHeight?: number;
   /** Per-cube positional jitter. Defaults to 0.015. */
   waveJitter?: number;
@@ -164,11 +164,11 @@ export function WaveGridBackground({
   colorHigh = "#7A1F1D",
   colorHighlight = "#E5DFD5",
   colorShadow = "#D8CFC4",
-  waveAmplitude = 0.52,
-  waveSpeed = 4.6,
+  waveAmplitude = 0.64,
+  waveSpeed = 4.8,
   waveFrequency = 0.95,
-  waveWidth = 4.4,
-  waveMaxHeight = 0.58,
+  waveWidth = 5.0,
+  waveMaxHeight = 0.68,
   waveJitter = 0.015,
   autoAnimate = true,
   vignette = false,
@@ -312,13 +312,13 @@ export function WaveGridBackground({
     const trailUniforms = {
       uTrailTexture: { value: trailTexture },
       uTrailCount: { value: 0 },
-      uFadeTime: { value: 3.6 },
+      uFadeTime: { value: 4.2 },
       uWaveSpeed: { value: waveSpeed },
       uWaveFreq: { value: waveFrequency },
       uWaveWidth: { value: waveWidth },
-      uAmplitude: { value: waveAmplitude },
-      uJitter: { value: waveJitter },
-      uMaxHeight: { value: waveMaxHeight },
+      uAmplitude: { value: isReducedMotion ? 0.0 : waveAmplitude },
+      uJitter: { value: isReducedMotion ? 0.0 : waveJitter },
+      uMaxHeight: { value: isReducedMotion ? 0.0 : waveMaxHeight },
     };
     const colorUniforms = {
       uColorBase: { value: new THREE.Color(colorBase) },
@@ -332,7 +332,7 @@ export function WaveGridBackground({
     let timeSinceLastMove = 3.0;
     let randomPointTimer = 1.0;
     let placingRandom = true;
-    const fadeTime = 3.6;
+    const fadeTime = 4.2;
     const trailSpacing = 0.1;
 
     const rayPlane = new THREE.Mesh(

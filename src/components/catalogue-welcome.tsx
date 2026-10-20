@@ -72,11 +72,11 @@ export function CatalogueWelcome({
         colorHigh="#7A1F1D"
         colorHighlight="#E5DFD5"
         colorShadow="#D8CFC4"
-        waveAmplitude={0.52}
-        waveSpeed={4.6}
+        waveAmplitude={0.64}
+        waveSpeed={4.8}
         waveFrequency={0.95}
-        waveWidth={4.4}
-        waveMaxHeight={0.58}
+        waveWidth={5.0}
+        waveMaxHeight={0.68}
         waveJitter={0.015}
         gridSize={52}
         vignette={false}
@@ -84,8 +84,11 @@ export function CatalogueWelcome({
       >
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4 sm:px-6 md:px-8 py-10 pointer-events-none select-none">
           {/* Eyebrow: Personal Greeting or Institutional Salutation */}
-          <div className="mb-2 sm:mb-3">
-            <h1 className="meta-mono text-xs sm:text-[13px] text-oxblood uppercase tracking-widest font-medium">
+          <div className="mb-3 sm:mb-4">
+            <h1
+              className="font-display font-light text-ink/90 tracking-[-0.015em] text-center"
+              style={{ fontSize: 'clamp(1.35rem, 2vw, 2rem)' }}
+            >
               {greeting}
             </h1>
           </div>
@@ -94,7 +97,7 @@ export function CatalogueWelcome({
           <MorphText
             words={['DISCOVER', 'LEARN', 'CONTRIBUTE', 'PRESERVE']}
             interval={3000}
-            fontSize="clamp(2.1rem, 5.2vw, 3.8rem)"
+            fontSize="clamp(2.5rem, 6vw, 4.25rem)"
             className="my-1 sm:my-2"
             textClassName="text-ink font-display font-medium tracking-tight"
           />
@@ -105,70 +108,70 @@ export function CatalogueWelcome({
           </p>
 
           {/* Role-Based Archive Metrics Strip */}
-          <div className="mt-7 sm:mt-9 w-full max-w-3xl pointer-events-auto">
+          <div className="mt-8 sm:mt-10 w-full max-w-3xl pointer-events-auto">
             {isAuthenticated && metrics ? (
               isAdmin ? (
-                /* Admin: 4 authoritatively calculated metrics */
+                /* Admin: 4 authoritatively calculated metrics with thin #E5DFD5 hairlines and prominent numerals */
                 <div
-                  className="grid grid-cols-2 md:grid-cols-4 border border-ink/15 bg-paper/90 backdrop-blur-sm divide-x divide-y md:divide-y-0 divide-ink/15 shadow-sm text-left"
+                  className="grid grid-cols-2 md:grid-cols-4 border border-[#E5DFD5] bg-paper/85 backdrop-blur-[2px] divide-x divide-y md:divide-y-0 divide-[#E5DFD5] text-left"
                   aria-label="Archival metrics"
                 >
-                  <div className="p-3.5 sm:p-4">
-                    <span className="block meta-mono text-[10px] sm:text-[11px] text-ash uppercase tracking-wider">
-                      01 — My Contributions
+                  <div className="px-5 py-3.5 sm:px-6 sm:py-4">
+                    <span className="block meta-mono text-[10px] sm:text-[11px] text-ash uppercase tracking-[0.14em] font-medium">
+                      01 — MY CONTRIBUTIONS
                     </span>
-                    <span className="mt-1 block font-display text-xl sm:text-2xl text-ink font-normal">
+                    <span className="mt-1.5 block font-display text-3xl sm:text-4xl text-ink font-normal tracking-tight">
                       {metrics.myContributions}
                     </span>
                   </div>
 
-                  <div className="p-3.5 sm:p-4">
-                    <span className="block meta-mono text-[10px] sm:text-[11px] text-ash uppercase tracking-wider">
-                      02 — Saved Folios
+                  <div className="px-5 py-3.5 sm:px-6 sm:py-4">
+                    <span className="block meta-mono text-[10px] sm:text-[11px] text-ash uppercase tracking-[0.14em] font-medium">
+                      02 — SAVED FOLIOS
                     </span>
-                    <span className="mt-1 block font-display text-xl sm:text-2xl text-ink font-normal">
+                    <span className="mt-1.5 block font-display text-3xl sm:text-4xl text-ink font-normal tracking-tight">
                       {metrics.savedFolios}
                     </span>
                   </div>
 
-                  <div className="p-3.5 sm:p-4">
-                    <span className="block meta-mono text-[10px] sm:text-[11px] text-oxblood uppercase tracking-wider font-medium">
-                      03 — Archive Resources
+                  <div className="px-5 py-3.5 sm:px-6 sm:py-4">
+                    <span className="block meta-mono text-[10px] sm:text-[11px] text-oxblood uppercase tracking-[0.14em] font-medium">
+                      03 — ARCHIVE RESOURCES
                     </span>
-                    <span className="mt-1 block font-display text-xl sm:text-2xl text-ink font-normal">
+                    <span className="mt-1.5 block font-display text-3xl sm:text-4xl text-ink font-normal tracking-tight">
                       {metrics.archiveResources ?? 0}
                     </span>
                   </div>
 
-                  <div className="p-3.5 sm:p-4">
-                    <span className="block meta-mono text-[10px] sm:text-[11px] text-oxblood uppercase tracking-wider font-medium">
-                      04 — Contributors
+                  <div className="px-5 py-3.5 sm:px-6 sm:py-4">
+                    <span className="block meta-mono text-[10px] sm:text-[11px] text-oxblood uppercase tracking-[0.14em] font-medium">
+                      04 — CONTRIBUTORS
                     </span>
-                    <span className="mt-1 block font-display text-xl sm:text-2xl text-ink font-normal">
+                    <span className="mt-1.5 block font-display text-3xl sm:text-4xl text-ink font-normal tracking-tight">
                       {metrics.contributors ?? 0}
                     </span>
                   </div>
                 </div>
               ) : (
-                /* Normal User: Personal metrics only — never leaks admin or global metrics */
+                /* Normal User: Personal metrics only — thin #E5DFD5 hairlines, large numerals, editorial index style */
                 <div
-                  className="grid grid-cols-2 max-w-md mx-auto border border-ink/15 bg-paper/90 backdrop-blur-sm divide-x divide-ink/15 shadow-sm text-left"
+                  className="grid grid-cols-2 max-w-lg mx-auto border border-[#E5DFD5] bg-paper/85 backdrop-blur-[2px] divide-x divide-[#E5DFD5] text-left"
                   aria-label="Personal contribution metrics"
                 >
-                  <div className="p-3.5 sm:p-4">
-                    <span className="block meta-mono text-[10px] sm:text-[11px] text-ash uppercase tracking-wider">
-                      01 — My Contributions
+                  <div className="px-6 py-3.5 sm:px-8 sm:py-4">
+                    <span className="block meta-mono text-[10px] sm:text-[11px] text-ash uppercase tracking-[0.14em] font-medium">
+                      01 — MY CONTRIBUTIONS
                     </span>
-                    <span className="mt-1 block font-display text-xl sm:text-2xl text-ink font-normal">
+                    <span className="mt-1.5 block font-display text-3xl sm:text-4xl text-ink font-normal tracking-tight">
                       {metrics.myContributions}
                     </span>
                   </div>
 
-                  <div className="p-3.5 sm:p-4">
-                    <span className="block meta-mono text-[10px] sm:text-[11px] text-ash uppercase tracking-wider">
-                      02 — Saved Folios
+                  <div className="px-6 py-3.5 sm:px-8 sm:py-4">
+                    <span className="block meta-mono text-[10px] sm:text-[11px] text-ash uppercase tracking-[0.14em] font-medium">
+                      02 — SAVED FOLIOS
                     </span>
-                    <span className="mt-1 block font-display text-xl sm:text-2xl text-ink font-normal">
+                    <span className="mt-1.5 block font-display text-3xl sm:text-4xl text-ink font-normal tracking-tight">
                       {metrics.savedFolios}
                     </span>
                   </div>
@@ -177,28 +180,29 @@ export function CatalogueWelcome({
             ) : (
               /* Guest / Public Scholar Strip */
               <div
-                className="grid grid-cols-1 sm:grid-cols-2 max-w-lg mx-auto border border-ink/15 bg-paper/90 backdrop-blur-sm divide-y sm:divide-y-0 sm:divide-x divide-ink/15 shadow-sm text-left"
+                className="grid grid-cols-1 sm:grid-cols-2 max-w-lg mx-auto border border-[#E5DFD5] bg-paper/85 backdrop-blur-[2px] divide-y sm:divide-y-0 sm:divide-x divide-[#E5DFD5] text-left"
                 aria-label="Public catalogue overview"
               >
-                <div className="p-3.5 sm:p-4">
-                  <span className="block meta-mono text-[10px] sm:text-[11px] text-ash uppercase tracking-wider">
-                    01 — Preserved Resources
+                <div className="px-6 py-3.5 sm:px-8 sm:py-4">
+                  <span className="block meta-mono text-[10px] sm:text-[11px] text-ash uppercase tracking-[0.14em] font-medium">
+                    01 — PRESERVED RESOURCES
                   </span>
-                  <span className="mt-1 block font-display text-xl sm:text-2xl text-ink font-normal">
+                  <span className="mt-1.5 block font-display text-3xl sm:text-4xl text-ink font-normal tracking-tight">
                     {totalPreserved !== undefined ? totalPreserved : 'Indexed'}
                   </span>
                 </div>
 
-                <div className="p-3.5 sm:p-4 flex flex-col justify-between">
-                  <span className="block meta-mono text-[10px] sm:text-[11px] text-oxblood uppercase tracking-wider font-medium">
-                    02 — Scholar Folio
+                <div className="px-6 py-3.5 sm:px-8 sm:py-4 flex flex-col justify-between">
+                  <span className="block meta-mono text-[10px] sm:text-[11px] text-oxblood uppercase tracking-[0.14em] font-medium">
+                    02 — SCHOLAR FOLIO
                   </span>
                   <Link
                     href="/auth/login?redirectTo=/documents"
-                    className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-ink hover:text-oxblood transition-colors"
+                    prefetch={true}
+                    className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-ink hover:text-oxblood transition-colors"
                   >
                     <span>Sign in to save & contribute</span>
-                    <ArrowUpRight className="w-3 h-3 text-oxblood" />
+                    <ArrowUpRight className="w-3.5 h-3.5 text-oxblood" />
                   </Link>
                 </div>
               </div>
