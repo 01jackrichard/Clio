@@ -64,38 +64,77 @@ describe('resolveDisplayName & formatWelcomeGreeting', () => {
 });
 
 describe('CatalogueWelcome Component', () => {
-  it('renders minimal personalized greeting when displayName is provided', () => {
+  it('renders personalized greeting "Welcome back, {displayName}." when displayName is provided', () => {
     render(<CatalogueWelcome displayName="Jack" />);
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Welcome, Jack.');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Welcome back, Jack.');
   });
 
-  it('falls back gracefully to "Welcome." when displayName is empty, omitted, or a placeholder', () => {
+  it('falls back to institutional greeting when not authenticated', () => {
     const { rerender } = render(<CatalogueWelcome />);
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Welcome.');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      'Preserved Scholarship · Academic Archive'
+    );
 
     rerender(<CatalogueWelcome displayName="   " />);
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Welcome.');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      'Preserved Scholarship · Academic Archive'
+    );
 
     rerender(<CatalogueWelcome displayName="User" />);
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Welcome.');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      'Preserved Scholarship · Academic Archive'
+    );
   });
 
-  it('contains ONLY the greeting and NO competing cards, labels, descriptions, or buttons', () => {
+  it('renders MorphText rotating verbs and supporting editorial sentence', () => {
     render(<CatalogueWelcome displayName="Jack" />);
-
-    // Must NOT contain badges or secondary labels
-    expect(screen.queryByText(/Academic Portal/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Institutional Repository/i)).not.toBeInTheDocument();
-
-    // Must NOT contain supporting description
+    expect(screen.getByText('DISCOVER')).toBeInTheDocument();
     expect(
-      screen.queryByText(/Discover, organize, and preserve academic knowledge/i)
-    ).not.toBeInTheDocument();
+      screen.getByText('Find useful academic resources, save what matters, and share what you learn.')
+    ).toBeInTheDocument();
+  });
 
-    // Must NOT contain buttons or links
-    expect(screen.queryByRole('link', { name: /Contribute a Folio/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /Browse Archive/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  it('renders only 2 personal metrics for standard users without leaking admin metrics', () => {
+    render(
+      <CatalogueWelcome
+        initialStats={{
+          isAuthenticated: true,
+          role: 'user',
+          displayName: 'Jack',
+          metrics: { myContributions: 3, savedFolios: 7 },
+        }}
+      />
+    );
+    expect(screen.getByText(/01 — My Contributions/i)).toBeInTheDocument();
+    expect(screen.getByText('3')).toBeInTheDocument();
+    expect(screen.getByText(/02 — Saved Folios/i)).toBeInTheDocument();
+    expect(screen.getByText('7')).toBeInTheDocument();
+    expect(screen.queryByText(/03 — Archive Resources/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/04 — Contributors/i)).not.toBeInTheDocument();
+  });
+
+  it('renders 4 complete metrics for administrators', () => {
+    render(
+      <CatalogueWelcome
+        initialStats={{
+          isAuthenticated: true,
+          role: 'admin',
+          displayName: 'Administrator',
+          metrics: {
+            myContributions: 12,
+            savedFolios: 25,
+            archiveResources: 140,
+            contributors: 42,
+          },
+        }}
+      />
+    );
+    expect(screen.getByText(/01 — My Contributions/i)).toBeInTheDocument();
+    expect(screen.getByText(/02 — Saved Folios/i)).toBeInTheDocument();
+    expect(screen.getByText(/03 — Archive Resources/i)).toBeInTheDocument();
+    expect(screen.getByText('140')).toBeInTheDocument();
+    expect(screen.getByText(/04 — Contributors/i)).toBeInTheDocument();
+    expect(screen.getByText('42')).toBeInTheDocument();
   });
 });
 

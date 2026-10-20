@@ -15,7 +15,7 @@ import {
   getSemesterDiscoveryData,
   getDiscoveryOverview,
 } from '@/lib/services/document-service';
-import { createClient } from '@/lib/supabase/server';
+import { getCatalogueMetrics } from '@/lib/services/catalogue-stats-service';
 import { DocumentCard } from '@/components/document-card';
 import { CatalogueWelcome } from '@/components/catalogue-welcome';
 import { InstitutionSelector } from '@/components/discovery/institution-selector';
@@ -23,9 +23,7 @@ import { BrowseModeSelector } from '@/components/discovery/browse-mode-selector'
 import { DiscoveryFilterBar } from '@/components/discovery/discovery-filter-bar';
 import { CollectionCard } from '@/components/discovery/collection-card';
 import { SemesterBrowser } from '@/components/discovery/semester-browser';
-import { config } from '@/lib/config';
 import { Container, buttonVariants } from '@/components/ui';
-import { resolveDisplayName } from '@/lib/utils';
 import { DocumentFilterParams, PaginatedResult, AcademicYearGroup } from '@/types';
 import { DocumentRecord, CollectionRecord } from '@/types/database';
 
@@ -53,32 +51,9 @@ interface DocumentsPageProps {
 export default async function DocumentsPage({ searchParams }: DocumentsPageProps) {
   const params = await searchParams;
 
-  // 1. Fetch user display name for personalized greeting
-  let userDisplayName: string | null = null;
-  if (config.supabase.url && !config.supabase.url.includes('placeholder')) {
-    try {
-      const supabase = await createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('display_name')
-          .eq('id', user.id)
-          .maybeSingle();
-
-        userDisplayName = resolveDisplayName(
-          profile?.display_name,
-          user.user_metadata,
-          user.email
-        );
-      }
-    } catch {
-      // Gracefully continue without breaking catalogue on auth error
-    }
-  }
+  // 1. Authoritative stats & personalized greeting calculation
+  const catalogueStats = await getCatalogueMetrics();
+  const userDisplayName = catalogueStats.displayName;
 
   // 2. Resolve Active Discovery State
   const page = Math.max(1, parseInt(params.page || '1', 10));
@@ -159,48 +134,15 @@ export default async function DocumentsPage({ searchParams }: DocumentsPageProps
 
   return (
     <div className="bg-paper min-h-screen">
-      {/* 1. Personalized Wave Grid Welcome Section (Preserved) */}
-      <CatalogueWelcome displayName={userDisplayName} />
+      {/* 1. Personalized Wave Grid & Editorial Folio Welcome */}
+      <CatalogueWelcome
+        displayName={userDisplayName}
+        initialStats={catalogueStats}
+        totalPreserved={overview.totalAll}
+      />
 
-      {/* 2. Compact Editorial Catalogue Introduction */}
-      <header id="archive-catalogue" className="border-b border-ink/15 py-8 sm:py-10">
-        <Container>
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
-            <div className="max-w-2xl space-y-2.5">
-              {/* Eyebrow Breadcrumb */}
-              <div className="flex flex-wrap items-center gap-2.5 meta-mono text-xs text-ash">
-                <span className="text-oxblood font-semibold tracking-wider uppercase">Discovery</span>
-                <span className="text-ink/20" aria-hidden="true">/</span>
-                <span className="tracking-wide uppercase">
-                  {overview.activeInstitution}
-                </span>
-                {overview.totalAll > 0 && (
-                  <>
-                    <span className="text-ink/20" aria-hidden="true">/</span>
-                    <span className="text-ink font-medium">
-                      {overview.totalAll} {overview.totalAll === 1 ? 'Resource' : 'Resources'} Preserved
-                    </span>
-                  </>
-                )}
-              </div>
-
-              {/* Editorial Display Heading */}
-              <h2 className="text-2xl sm:text-3xl lg:text-[2.25rem] font-display font-normal leading-[1.18] tracking-tight text-ink text-balance">
-                Academic Discovery System, <span className="display-italic text-ink/80">indexed & verified.</span>
-              </h2>
-
-              {/* Scannable Supporting Summary */}
-              <p className="text-xs sm:text-sm text-ash max-w-xl leading-relaxed">
-                Explore curated course packs, verified lecture notes, semester syllabi, and laboratory manuals
-                {isAllInstitutions ? ' across all preserved institutions' : ` verified for ${overview.activeInstitution}`}.
-              </p>
-            </div>
-          </div>
-        </Container>
-      </header>
-
-      {/* 3. Main Discovery Experience: Institution Selector + Tabs + Filter Bar + Results */}
-      <div className="py-8 sm:py-12">
+      {/* 2. Main Discovery Experience: Institution Selector + Tabs + Filter Bar + Results */}
+      <div id="archive-catalogue" className="py-6 sm:py-10">
         <Container className="space-y-6">
           {/* Institution Explorer Bar */}
           <Suspense fallback={<div className="h-14 bg-card border border-ink/10 animate-pulse" />}>

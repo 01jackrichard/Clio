@@ -140,7 +140,7 @@ describe('Phase 2 — Authentication & Onboarding Routes', () => {
       fireEvent.click(screen.getByRole('button', { name: /authenticate & open library/i }));
 
       await waitFor(() => {
-        expect(mockPush).toHaveBeenCalledWith('/dashboard');
+        expect(mockPush).toHaveBeenCalledWith('/documents');
       });
     });
   });

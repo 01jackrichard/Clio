@@ -1,17 +1,27 @@
 {
   "frontImage": {
-    "filename": "scattered-study-notes.webp",
-    "source": "https://unsplash.com/photos/4-432G48vOA (photo-1456513080510-7bf3a84b82f8)",
-    "photographer": "Aaron Burden",
-    "license": "Unsplash License (Free to use for commercial and non-commercial purposes)",
-    "dimensions": "1600x1000",
-    "format": "WebP"
+    "filename": "johann-hamza-the-library.jpg",
+    "title": "The Library",
+    "artist": "Johann Hamza (1850–1927)",
+    "date": "19th century",
+    "medium": "Oil on panel",
+    "source": "https://commons.wikimedia.org/wiki/File:Johann_Hamza_The_Library.jpg",
+    "directUrl": "https://upload.wikimedia.org/wikipedia/commons/0/0c/Johann_Hamza_The_Library.jpg",
+    "license": "Public Domain (life + 70 years / PD-Art)",
+    "dimensions": "1426x2048",
+    "format": "JPEG",
+    "role": "The Study — Opening scene representing intimate scholarship: a scholar reading in a book-lined study"
   },
   "backImage": {
-    "filename": "clio-archive-preview.webp",
-    "source": "Clio Academic Discovery System (http://localhost:3000/documents)",
-    "subject": "Clio Real Product Catalogue, Institution Explorer & Semester Tree Interface",
-    "dimensions": "1600x1000",
-    "format": "WebP"
+    "filename": "the-archive-lamson-henry.webp",
+    "title": "Library Interior",
+    "artist": "Edward Lamson Henry (1841–1919)",
+    "date": "c. 1900",
+    "medium": "Watercolour and gouache on paper",
+    "source": "https://commons.wikimedia.org/wiki/File:Edward_Lamson_Henry_-_Library_Interior_-_Google_Art_Project.jpg",
+    "license": "Public Domain (Google Art Project)",
+    "dimensions": "1600x1112",
+    "format": "WebP",
+    "role": "The Archive — Climax scene representing preserved institutional knowledge"
   }
 }

@@ -12,7 +12,7 @@ import { Button, Input, Card, CardContent, ClioEmblem } from '@/components/ui';
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = sanitizeRedirectUrl(searchParams.get('redirectTo'), '/dashboard');
+  const redirectTo = sanitizeRedirectUrl(searchParams.get('redirectTo'), '/documents');
   const registeredMsg = searchParams.get('registered');
 
   const [email, setEmail] = useState('');
@@ -200,7 +200,7 @@ function LoginForm() {
           <span className="text-ash">New scholar to Clio?</span>
           <Link
             href={
-              redirectTo && redirectTo !== '/dashboard'
+              redirectTo && redirectTo !== '/documents'
                 ? `/auth/register?redirectTo=${encodeURIComponent(redirectTo)}`
                 : '/auth/register'
             }
