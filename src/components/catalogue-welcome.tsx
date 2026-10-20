@@ -108,15 +108,15 @@ export function CatalogueWelcome({
           </p>
 
           {/* Role-Based Archive Metrics Strip */}
-          <div className="mt-8 sm:mt-10 w-full max-w-3xl pointer-events-auto">
+          <div className="mt-8 sm:mt-10 w-full max-w-4xl pointer-events-auto">
             {isAuthenticated && metrics ? (
               isAdmin ? (
-                /* Admin: 4 authoritatively calculated metrics with thin #E5DFD5 hairlines and prominent numerals */
+                /* Admin: Personal metrics + Authoritative global archive metrics */
                 <div
-                  className="grid grid-cols-2 md:grid-cols-4 border border-[#E5DFD5] bg-paper/85 backdrop-blur-[2px] divide-x divide-y md:divide-y-0 divide-[#E5DFD5] text-left"
+                  className="grid grid-cols-2 md:grid-cols-5 border border-[#E5DFD5] bg-paper/85 backdrop-blur-[2px] divide-x divide-y md:divide-y-0 divide-[#E5DFD5] text-left max-w-5xl mx-auto"
                   aria-label="Archival metrics"
                 >
-                  <div className="px-5 py-3.5 sm:px-6 sm:py-4">
+                  <div className="px-4 py-3.5 sm:px-5 sm:py-4">
                     <span className="block meta-mono text-[10px] sm:text-[11px] text-ash uppercase tracking-[0.14em] font-medium">
                       01 — MY CONTRIBUTIONS
                     </span>
@@ -125,7 +125,7 @@ export function CatalogueWelcome({
                     </span>
                   </div>
 
-                  <div className="px-5 py-3.5 sm:px-6 sm:py-4">
+                  <div className="px-4 py-3.5 sm:px-5 sm:py-4">
                     <span className="block meta-mono text-[10px] sm:text-[11px] text-ash uppercase tracking-[0.14em] font-medium">
                       02 — SAVED FOLIOS
                     </span>
@@ -134,18 +134,27 @@ export function CatalogueWelcome({
                     </span>
                   </div>
 
-                  <div className="px-5 py-3.5 sm:px-6 sm:py-4">
+                  <div className="px-4 py-3.5 sm:px-5 sm:py-4 col-span-2 md:col-span-1">
+                    <span className="block meta-mono text-[10px] sm:text-[11px] text-ash uppercase tracking-[0.14em] font-medium">
+                      03 — PRIVATE STORAGE
+                    </span>
+                    <span className="mt-1.5 block font-display text-2xl sm:text-3xl text-ink font-normal tracking-tight whitespace-nowrap">
+                      {metrics.privateStorageFormatted || '0.0 / 50 GB'}
+                    </span>
+                  </div>
+
+                  <div className="px-4 py-3.5 sm:px-5 sm:py-4">
                     <span className="block meta-mono text-[10px] sm:text-[11px] text-oxblood uppercase tracking-[0.14em] font-medium">
-                      03 — ARCHIVE RESOURCES
+                      04 — ARCHIVE RESOURCES
                     </span>
                     <span className="mt-1.5 block font-display text-3xl sm:text-4xl text-ink font-normal tracking-tight">
                       {metrics.archiveResources ?? 0}
                     </span>
                   </div>
 
-                  <div className="px-5 py-3.5 sm:px-6 sm:py-4">
+                  <div className="px-4 py-3.5 sm:px-5 sm:py-4">
                     <span className="block meta-mono text-[10px] sm:text-[11px] text-oxblood uppercase tracking-[0.14em] font-medium">
-                      04 — CONTRIBUTORS
+                      05 — CONTRIBUTORS
                     </span>
                     <span className="mt-1.5 block font-display text-3xl sm:text-4xl text-ink font-normal tracking-tight">
                       {metrics.contributors ?? 0}
@@ -153,12 +162,12 @@ export function CatalogueWelcome({
                   </div>
                 </div>
               ) : (
-                /* Normal User: Personal metrics only — thin #E5DFD5 hairlines, large numerals, editorial index style */
+                /* Normal User: 3 personal metrics — thin #E5DFD5 hairlines, large numerals, editorial index style */
                 <div
-                  className="grid grid-cols-2 max-w-lg mx-auto border border-[#E5DFD5] bg-paper/85 backdrop-blur-[2px] divide-x divide-[#E5DFD5] text-left"
+                  className="grid grid-cols-1 sm:grid-cols-3 max-w-2xl mx-auto border border-[#E5DFD5] bg-paper/85 backdrop-blur-[2px] divide-y sm:divide-y-0 sm:divide-x divide-[#E5DFD5] text-left"
                   aria-label="Personal contribution metrics"
                 >
-                  <div className="px-6 py-3.5 sm:px-8 sm:py-4">
+                  <div className="px-5 py-3.5 sm:px-6 sm:py-4">
                     <span className="block meta-mono text-[10px] sm:text-[11px] text-ash uppercase tracking-[0.14em] font-medium">
                       01 — MY CONTRIBUTIONS
                     </span>
@@ -167,12 +176,21 @@ export function CatalogueWelcome({
                     </span>
                   </div>
 
-                  <div className="px-6 py-3.5 sm:px-8 sm:py-4">
+                  <div className="px-5 py-3.5 sm:px-6 sm:py-4">
                     <span className="block meta-mono text-[10px] sm:text-[11px] text-ash uppercase tracking-[0.14em] font-medium">
                       02 — SAVED FOLIOS
                     </span>
                     <span className="mt-1.5 block font-display text-3xl sm:text-4xl text-ink font-normal tracking-tight">
                       {metrics.savedFolios}
+                    </span>
+                  </div>
+
+                  <div className="px-5 py-3.5 sm:px-6 sm:py-4">
+                    <span className="block meta-mono text-[10px] sm:text-[11px] text-ash uppercase tracking-[0.14em] font-medium">
+                      03 — PRIVATE STORAGE
+                    </span>
+                    <span className="mt-1.5 block font-display text-2xl sm:text-3xl text-ink font-normal tracking-tight whitespace-nowrap">
+                      {metrics.privateStorageFormatted || '0.0 / 50 GB'}
                     </span>
                   </div>
                 </div>

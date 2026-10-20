@@ -86,12 +86,12 @@ export function validateAcademicDocument(
     return { isValid: false, error: 'A valid document filename is required.' };
   }
 
-  // 1. File size verification
+  // 1. File size verification (enforce only when maxSizeBytes is a finite positive limit; Infinity disables limit)
   if (buffer.length === 0) {
     return { isValid: false, error: 'Uploaded file is empty (0 bytes).' };
   }
 
-  if (buffer.length > maxSizeBytes) {
+  if (Number.isFinite(maxSizeBytes) && maxSizeBytes > 0 && buffer.length > maxSizeBytes) {
     const mbLimit = Math.round(maxSizeBytes / (1024 * 1024));
     return {
       isValid: false,

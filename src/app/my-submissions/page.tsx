@@ -2,7 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Plus } from 'lucide-react';
-import { createClient } from '@/lib/supabase/server';
+import { getCurrentUser } from '@/lib/supabase/server';
 import { getUserSubmissions } from '@/lib/services/document-service';
 import { MySubmissionsList } from './submissions-list';
 import { config } from '@/lib/config';
@@ -20,12 +20,10 @@ export default async function MySubmissionsPage({ searchParams }: MySubmissionsP
     redirect('/auth/login?redirectTo=/my-submissions');
   }
 
-  const params = await searchParams;
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const [params, user] = await Promise.all([
+    searchParams,
+    getCurrentUser(),
+  ]);
 
   if (!user) {
     redirect('/auth/login?redirectTo=/my-submissions');

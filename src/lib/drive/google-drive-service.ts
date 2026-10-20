@@ -295,6 +295,53 @@ export async function uploadFileToDrive({
     mimeType,
   };
 
+  // For files larger than 5 MB, Google Drive API requires resumable upload protocol
+  if (buffer.length > 5 * 1024 * 1024) {
+    try {
+      const initRes = await fetch(
+        'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,name,mimeType,size,webViewLink',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json; charset=UTF-8',
+            'X-Upload-Content-Type': mimeType,
+            'X-Upload-Content-Length': buffer.length.toString(),
+          },
+          body: JSON.stringify(metadata),
+        }
+      );
+
+      if (initRes.ok) {
+        const sessionUri = initRes.headers.get('Location');
+        if (sessionUri) {
+          const putRes = await fetch(sessionUri, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': mimeType,
+              'Content-Length': buffer.length.toString(),
+            },
+            body: new Uint8Array(buffer),
+          });
+
+          if (putRes.ok) {
+            const data = await putRes.json();
+            return {
+              fileId: data.id,
+              name: data.name,
+              mimeType: data.mimeType,
+              size: data.size ? Number(data.size) : buffer.length,
+              webViewLink: data.webViewLink,
+            };
+          }
+        }
+      }
+    } catch (resumableErr) {
+      console.warn('[GoogleDriveService] Resumable upload attempt failed, trying multipart:', resumableErr);
+    }
+  }
+
+  // Construct multipart/related boundary payload
   const metadataHeader = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n`;
   const mediaHeader = `--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`;
   const footer = `\r\n--${boundary}--`;
@@ -373,6 +420,36 @@ export async function setDriveFilePublicReader(fileId: string): Promise<boolean>
   }
 
   return true;
+}
+
+/**
+ * Permanently removes a file from Google Drive archival storage.
+ */
+export async function deleteFileFromDrive(fileId: string): Promise<boolean> {
+  if (!fileId) return false;
+
+  try {
+    const accessToken = await getValidAccessToken();
+    const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}`;
+
+    const res = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!res.ok && res.status !== 404) {
+      const errorData = await res.json().catch(() => ({}));
+      console.warn(`[GoogleDriveService] Failed to delete file ${fileId} from Drive:`, errorData);
+      return false;
+    }
+
+    return true;
+  } catch (err) {
+    console.warn(`[GoogleDriveService] Exception deleting file ${fileId} from Drive:`, err);
+    return false;
+  }
 }
 
 /**

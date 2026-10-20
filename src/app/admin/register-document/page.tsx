@@ -1,6 +1,6 @@
 import React from 'react';
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getCurrentUser, getCurrentUserProfile } from '@/lib/supabase/server';
 import { config } from '@/lib/config';
 import { Container, PageHeader } from '@/components/ui/container';
 import { AdminNav } from '@/components/admin/admin-nav';
@@ -13,25 +13,19 @@ export default async function AdminRegisterDocumentPage() {
     redirect('/auth/login?redirectTo=/admin/register-document');
   }
 
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) {
     redirect('/auth/login?redirectTo=/admin/register-document');
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, status')
-    .eq('id', user.id)
-    .single();
+  const profile = await getCurrentUserProfile(user.id);
 
   if (!profile || profile.role !== 'admin' || profile.status === 'suspended') {
     redirect('/unauthorized');
   }
+
+  const supabase = await createClient();
 
   // Fetch pending counters for navigation
   let pendingModerationCount = 0;

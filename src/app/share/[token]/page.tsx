@@ -7,7 +7,7 @@ import {
   FileQuestion,
   Lock,
 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/server';
+import { getCurrentUser } from '@/lib/supabase/server';
 import { getAdminClient } from '@/lib/supabase/admin';
 import {
   hashShareToken,
@@ -74,10 +74,7 @@ export default async function ShareRedemptionPage({ params }: SharePageProps) {
   }
 
   // 2. Check recipient authentication
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) {
     // Unauthenticated visitor: redirect to login while safely preserving the invitation return destination

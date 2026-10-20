@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import {
   Loader2,
@@ -12,14 +12,16 @@ import {
   FileText,
   ArrowLeft,
   ShieldAlert,
+  Download,
 } from 'lucide-react';
-import { getDriveEmbedUrl, isValidDriveFileId } from '@/lib/drive/urls';
 import { Button, buttonVariants } from '@/components/ui';
 import { Skiper89 } from '@/components/v1/skiper89';
 
-interface PdfViewerProps {
+export interface PdfViewerProps {
   documentId: string;
   documentTitle: string;
+  originalFilename?: string | null;
+  fileSize?: number | null;
   driveFileId?: string | null;
   initialPreviewUrl?: string;
 }
@@ -27,71 +29,96 @@ interface PdfViewerProps {
 export function PdfViewer({
   documentId,
   documentTitle,
-  driveFileId: initialDriveId,
   initialPreviewUrl,
 }: PdfViewerProps) {
-  const [driveFileId, setDriveFileId] = useState<string | null>(initialDriveId || null);
-  const [embedUrl, setEmbedUrl] = useState<string | null>(
-    initialPreviewUrl || (initialDriveId ? getDriveEmbedUrl(initialDriveId) : null)
-  );
-  const [loading, setLoading] = useState<boolean>(!initialPreviewUrl && !initialDriveId);
-  const [iframeLoading, setIframeLoading] = useState<boolean>(true);
+  // Always use Clio's unified, authenticated streaming delivery endpoint
+  const streamUrl = initialPreviewUrl || `/api/documents/${documentId}/raw`;
+
+  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [documentReady, setDocumentReady] = useState(false);
+  const [prevTrackedKey, setPrevTrackedKey] = useState(`${documentId}-${reloadKey}`);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  // If driveFileId was not supplied server-side, fetch it from the preview endpoint
+  // Synchronously reset state during render when documentId or reloadKey changes
+  if (prevTrackedKey !== `${documentId}-${reloadKey}`) {
+    setPrevTrackedKey(`${documentId}-${reloadKey}`);
+    setLoading(true);
+    setError(null);
+    setDocumentReady(false);
+  }
+
   useEffect(() => {
-    if (initialDriveId || initialPreviewUrl) {
-      return;
-    }
-
     let isMounted = true;
 
-    async function fetchDocumentPreview() {
-      setLoading(true);
-      setError(null);
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
+    // Timeout safety fallback: never leave the user trapped in infinite loading
+    const timeoutId = setTimeout(() => {
+      if (isMounted) {
+        setLoading(false);
+        // Allow the iframe to continue attempting render even if pre-flight timed out
+        setDocumentReady(true);
+      }
+    }, 7000);
+
+    async function verifyDocumentAccess() {
       try {
-        const res = await fetch(`/api/documents/${documentId}/preview`);
-        const data = await res.json();
+        const res = await fetch(streamUrl, {
+          method: 'HEAD',
+          signal: controller.signal,
+        });
 
-        if (!res.ok) {
-          throw new Error(data.error || 'Failed to initialize document preview');
-        }
+        if (!isMounted) return;
+        clearTimeout(timeoutId);
 
-        if (isMounted) {
-          if (data.driveFileId) {
-            setDriveFileId(data.driveFileId);
+        if (res.ok) {
+          setDocumentReady(true);
+          setLoading(false);
+        } else {
+          let errorMsg = 'Unable to load this document. Please try again.';
+          if (res.status === 401) {
+            errorMsg = 'Please sign in to read this document.';
+          } else if (res.status === 403) {
+            errorMsg = 'This document is private or requires an access password.';
+          } else if (res.status === 404) {
+            errorMsg = 'This document folio could not be found in the archive.';
+          } else if (res.status === 502 || res.status === 503) {
+            errorMsg = 'Archival document service is temporarily unavailable. Please try again shortly.';
           }
-          if (data.previewUrl) {
-            setEmbedUrl(data.previewUrl);
-          } else if (data.driveFileId) {
-            setEmbedUrl(getDriveEmbedUrl(data.driveFileId));
-          } else {
-            throw new Error('This document does not have an associated Google Drive file identifier.');
-          }
-        }
-      } catch (err: unknown) {
-        if (isMounted) {
-          setError(err instanceof Error ? err.message : 'Error preparing document preview');
-        }
-      } finally {
-        if (isMounted) {
+          setError(errorMsg);
           setLoading(false);
         }
+      } catch (err: unknown) {
+        if (!isMounted) return;
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          return;
+        }
+        clearTimeout(timeoutId);
+        // Fallback: if HEAD method fails (e.g. proxy restriction), attempt direct render
+        setDocumentReady(true);
+        setLoading(false);
       }
     }
 
-    fetchDocumentPreview();
+    verifyDocumentAccess();
 
     return () => {
       isMounted = false;
+      clearTimeout(timeoutId);
+      controller.abort();
     };
-  }, [documentId, initialDriveId, initialPreviewUrl]);
+  }, [documentId, streamUrl, reloadKey]);
 
   const handleRefresh = () => {
-    setIframeLoading(true);
+    setLoading(true);
+    setError(null);
     setReloadKey((prev) => prev + 1);
   };
 
@@ -104,6 +131,8 @@ export function PdfViewer({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isFullscreen]);
+
+  const downloadUrl = `${streamUrl}?download=true`;
 
   return (
     <div
@@ -121,7 +150,7 @@ export function PdfViewer({
             {documentTitle}
           </span>
           <span className="hidden md:inline-flex items-center gap-1.5 px-2 py-0.5 border border-paper/20 meta-mono text-[10px] text-paper/70">
-            Google Drive In-App Reader
+            Document Reader
           </span>
         </div>
 
@@ -130,24 +159,31 @@ export function PdfViewer({
             type="button"
             onClick={handleRefresh}
             className="p-1.5 text-paper/70 hover:text-paper hover:bg-paper/10 transition-colors cursor-pointer"
-            title="Reload preview frame"
-            aria-label="Reload preview"
+            title="Reload Document"
+            aria-label="Reload Document"
           >
             <RotateCw className="w-3.5 h-3.5" />
           </button>
 
-          {driveFileId && isValidDriveFileId(driveFileId) && (
-            <a
-              href={`https://drive.google.com/file/d/${driveFileId}/view`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs border border-paper/25 text-paper/80 hover:text-paper hover:bg-paper/10 transition-colors meta-mono"
-              title="Open repository file in Google Drive (external tab)"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Drive View</span>
-            </a>
-          )}
+          <a
+            href={streamUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs border border-paper/25 text-paper/80 hover:text-paper hover:bg-paper/10 transition-colors meta-mono"
+            title="Open Reader in Full Screen Tab"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Full View</span>
+          </a>
+
+          <a
+            href={downloadUrl}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs border border-paper/25 text-paper/80 hover:text-paper hover:bg-paper/10 transition-colors meta-mono"
+            title="Download Document"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Download</span>
+          </a>
 
           <button
             type="button"
@@ -164,11 +200,11 @@ export function PdfViewer({
       {/* Viewer Body */}
       <div className="relative flex-1 bg-ink/95 flex items-center justify-center overflow-hidden">
         {/* Loading overlay */}
-        {(loading || iframeLoading) && !error && (
+        {loading && !error && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-ink/95 text-paper text-xs">
             <Loader2 className="w-7 h-7 animate-spin text-paper/80" />
-            <p className="meta-mono text-paper/90">Initializing in-app Google Drive preview...</p>
-            <p className="text-[11px] text-paper/50">Rendering academic folio within Clio</p>
+            <p className="meta-mono text-paper/90">Loading document...</p>
+            <p className="text-[11px] text-paper/50">Consulting archival folio in Clio</p>
           </div>
         )}
 
@@ -176,22 +212,22 @@ export function PdfViewer({
         {error ? (
           <div className="flex flex-col items-center gap-3.5 p-8 max-w-lg text-center text-paper bg-card border border-ink/20 shadow-lg m-4">
             <AlertCircle className="w-9 h-9 text-oxblood" />
-            <h3 className="font-display text-lg text-ink font-medium">Document Preview Unavailable</h3>
+            <h3 className="font-display text-lg text-ink font-medium">Document Unavailable</h3>
             <p className="text-xs text-ash leading-relaxed">{error}</p>
 
             <div className="p-3 bg-paper border border-ink/15 text-[11px] text-ash text-left space-y-1.5 w-full">
               <p className="font-semibold text-ink flex items-center gap-1.5">
                 <ShieldAlert className="w-3.5 h-3.5 text-oxblood" />
-                Troubleshooting Guidance:
+                Folio Guidance:
               </p>
               <ul className="list-disc list-inside space-y-1 text-ash">
-                <li>Verify this document has been approved and published in Clio.</li>
-                <li>Ensure browser extensions or strict cookie protection are not blocking Google previews.</li>
-                <li>The canonical file in Google Drive must permit reader access.</li>
+                <li>Verify this document has been approved and published in the catalogue.</li>
+                <li>If this document is private, ensure you have submitted the valid password or received an active share grant.</li>
+                <li>You can reload the folio or download a copy directly below.</li>
               </ul>
             </div>
 
-            <div className="pt-2 flex items-center gap-3">
+            <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
               <Link
                 href="/documents"
                 className={buttonVariants({ variant: 'outline', size: 'sm', className: 'gap-1.5' })}
@@ -205,26 +241,31 @@ export function PdfViewer({
                 onClick={handleRefresh}
                 leftIcon={<RotateCw className="w-3.5 h-3.5" />}
               >
-                Retry Loading
+                Reload Document
               </Button>
+              <a
+                href={downloadUrl}
+                className={buttonVariants({ variant: 'secondary', size: 'sm', className: 'gap-1.5' })}
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Download PDF</span>
+              </a>
             </div>
           </div>
-        ) : embedUrl ? (
+        ) : documentReady ? (
           <iframe
             key={reloadKey}
-            src={embedUrl}
-            title={`Academic Document Preview - ${documentTitle}`}
+            src={`${streamUrl}#toolbar=1&navpanes=1`}
+            title={`Academic Document Reader - ${documentTitle}`}
             className="w-full h-full border-0 bg-paper"
-            allow="autoplay"
-            sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-forms allow-downloads"
             loading="lazy"
-            onLoad={() => setIframeLoading(false)}
+            onLoad={() => setLoading(false)}
           />
         ) : null}
       </div>
 
       {/* Skiper89 Scroll Progress: Active during reading mode */}
-      {!loading && !iframeLoading && !error && (
+      {!loading && !error && (
         <Skiper89
           className={
             isFullscreen

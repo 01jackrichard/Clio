@@ -19,6 +19,7 @@ import {
   Check,
 } from 'lucide-react';
 import { config } from '@/lib/config';
+import { createClient } from '@/lib/supabase/client';
 import {
   DEPARTMENTS,
   ACADEMIC_YEARS,
@@ -49,6 +50,9 @@ import { RadialGlowButton } from '@/components/ui/radial-glow-button';
 import { ShareResourceButton } from '@/components/sharing/share-resource-button';
 
 export default function UploadPage() {
+  // User authorization & admin status
+  const [isAdmin, setIsAdmin] = useState(false);
+
   // Mode selection: 'individual' vs 'collection'
   const [uploadMode, setUploadMode] = useState<'individual' | 'collection'>('individual');
 
@@ -107,6 +111,38 @@ export default function UploadPage() {
     collectionId?: string;
   } | null>(null);
 
+  // Fetch user role on mount to determine upload quotas and capabilities
+  useEffect(() => {
+    let isMounted = true;
+    async function checkRole() {
+      if (!config.supabase.url) return;
+      try {
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user || !isMounted) return;
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+
+        if (profile?.role === 'admin' && isMounted) {
+          setIsAdmin(true);
+        }
+      } catch {
+        // Fallback silently to standard user
+      }
+    }
+    checkRole();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // Fetch user's existing collections when in collection mode
   useEffect(() => {
     if (uploadMode !== 'collection') return;
@@ -130,7 +166,7 @@ export default function UploadPage() {
   // Staged progress messaging
   const stagedMessages = [
     'Validating academic document signature...',
-    'Authorizing Google Drive central repository...',
+    'Preparing secure archival repository...',
     'Transferring file to institutional library...',
     'Registering folio metadata in catalogue...',
   ];
@@ -152,8 +188,8 @@ export default function UploadPage() {
       return;
     }
 
-    // Size limit check: 50 MB
-    if (file.size > 50 * 1024 * 1024) {
+    // Size limit check: 50 MB for standard contributors; none for admin
+    if (!isAdmin && file.size > 50 * 1024 * 1024) {
       setError('File size exceeds the 50 MB repository limit. Please select a smaller document.');
       return;
     }
@@ -339,8 +375,10 @@ export default function UploadPage() {
             <span className="meta-mono text-oxblood font-semibold">Contribution Folio</span>
             <span className="block h-px w-6 bg-ink/30" aria-hidden="true" />
             <span className="label-eyebrow">Academic Archive</span>
-            <Badge variant="neutral" size="sm">
-              PDF, DOC, DOCX · Max 50 MB
+            <Badge variant={isAdmin ? 'oxblood' : 'neutral'} size="sm">
+              {isAdmin
+                ? 'PDF, DOC, DOCX · Standard Limit: 50 MB (Admin: No Limit)'
+                : 'PDF, DOC, DOCX · Max 50 MB'}
             </Badge>
             <Badge variant="neutral" size="sm">
               Anna University Syllabus · CBCS
@@ -354,7 +392,7 @@ export default function UploadPage() {
           <p className="text-xs sm:text-sm text-ash leading-relaxed max-w-2xl">
             Deposit lecture notes, question banks, or complete course packs for{' '}
             <strong className="text-ink font-medium">{config.app.collegeName}</strong>. Documents are
-            preserved in the institutional Google Drive repository with optional password-protected group sharing.
+            preserved in the institutional academic repository with optional password-protected group sharing.
           </p>
 
           {/* Mode Switcher Tabs */}
@@ -647,7 +685,7 @@ export default function UploadPage() {
                       {uploadMode === 'collection' ? '01. Select Document File for Pack' : '01. Select Academic Document'}
                     </span>
                   </div>
-                  <span className="meta-mono text-ash text-[11px]">Direct Drive Deposit</span>
+                  <span className="meta-mono text-ash text-[11px]">Direct Folio Deposit</span>
                 </div>
 
                 <input
@@ -691,7 +729,9 @@ export default function UploadPage() {
                       Select a folio or drag and drop file here
                     </p>
                     <p className="text-xs text-ash mt-1">
-                      PDF, DOC, or DOCX formats accepted up to 50 MB
+                      {isAdmin
+                        ? 'PDF, DOC, or DOCX formats accepted · Standard limit: 50 MB (No limit for Administrator)'
+                        : 'PDF, DOC, or DOCX formats accepted up to 50 MB'}
                     </p>
                   </div>
                 ) : (
@@ -705,7 +745,14 @@ export default function UploadPage() {
                           {selectedFile.name}
                         </p>
                         <p className="meta-mono text-ash text-[11px]">
-                          {formatBytes(selectedFile.size)} · Google Drive Repository
+                          {formatBytes(selectedFile.size)} · Academic Archive
+                          {isAdmin && (
+                            <span className="text-oxblood font-semibold ml-2">
+                              {selectedFile.size > 50 * 1024 * 1024
+                                ? '(Admin Unlimited Folio · > 50 MB)'
+                                : '(Admin Upload)'}
+                            </span>
+                          )}
                         </p>
                       </div>
                     </div>
@@ -1030,8 +1077,8 @@ export default function UploadPage() {
                       <div className="flex items-start gap-2">
                       <ShieldCheck className="w-4 h-4 text-oxblood shrink-0 mt-0.5" />
                       <p className="text-xs text-ash leading-relaxed">
-                        Private assets are encrypted using salted PBKDF2-SHA512. Drive access links remain
-                        confidential and files stream securely via server proxy upon password unlock.
+                        Private assets are protected using salted PBKDF2-SHA512. Access links remain
+                        confidential and files stream securely via authenticated session or password unlock.
                       </p>
                     </div>
 
@@ -1119,7 +1166,7 @@ export default function UploadPage() {
 
               {submitting && (
                 <p className="meta-mono text-center text-xs text-ash animate-pulse">
-                  Please keep this window open while the document is uploaded to Google Drive.
+                  Please keep this window open while the document is uploaded and catalogued.
                 </p>
               )}
             </div>

@@ -94,14 +94,18 @@ describe('CatalogueWelcome Component', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders only 2 personal metrics for standard users without leaking admin metrics', () => {
+  it('renders 3 personal metrics for standard users without leaking admin metrics', () => {
     render(
       <CatalogueWelcome
         initialStats={{
           isAuthenticated: true,
           role: 'user',
           displayName: 'Jack',
-          metrics: { myContributions: 3, savedFolios: 7 },
+          metrics: {
+            myContributions: 3,
+            savedFolios: 7,
+            privateStorageFormatted: '1.2 / 50 GB',
+          },
         }}
       />
     );
@@ -109,11 +113,13 @@ describe('CatalogueWelcome Component', () => {
     expect(screen.getByText('3')).toBeInTheDocument();
     expect(screen.getByText(/02 — Saved Folios/i)).toBeInTheDocument();
     expect(screen.getByText('7')).toBeInTheDocument();
-    expect(screen.queryByText(/03 — Archive Resources/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/04 — Contributors/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/03 — Private Storage/i)).toBeInTheDocument();
+    expect(screen.getByText('1.2 / 50 GB')).toBeInTheDocument();
+    expect(screen.queryByText(/04 — Archive Resources/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/05 — Contributors/i)).not.toBeInTheDocument();
   });
 
-  it('renders 4 complete metrics for administrators', () => {
+  it('renders 5 complete metrics for administrators', () => {
     render(
       <CatalogueWelcome
         initialStats={{
@@ -123,6 +129,7 @@ describe('CatalogueWelcome Component', () => {
           metrics: {
             myContributions: 12,
             savedFolios: 25,
+            privateStorageFormatted: '0.4 / 50 GB',
             archiveResources: 140,
             contributors: 42,
           },
@@ -131,9 +138,11 @@ describe('CatalogueWelcome Component', () => {
     );
     expect(screen.getByText(/01 — My Contributions/i)).toBeInTheDocument();
     expect(screen.getByText(/02 — Saved Folios/i)).toBeInTheDocument();
-    expect(screen.getByText(/03 — Archive Resources/i)).toBeInTheDocument();
+    expect(screen.getByText(/03 — Private Storage/i)).toBeInTheDocument();
+    expect(screen.getByText('0.4 / 50 GB')).toBeInTheDocument();
+    expect(screen.getByText(/04 — Archive Resources/i)).toBeInTheDocument();
     expect(screen.getByText('140')).toBeInTheDocument();
-    expect(screen.getByText(/04 — Contributors/i)).toBeInTheDocument();
+    expect(screen.getByText(/05 — Contributors/i)).toBeInTheDocument();
     expect(screen.getByText('42')).toBeInTheDocument();
   });
 });

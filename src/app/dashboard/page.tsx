@@ -14,7 +14,7 @@ import {
   Archive,
   AlertCircle,
 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/server';
+import { getCurrentUser, getCurrentUserProfile } from '@/lib/supabase/server';
 import { getUserSubmissions, getUserFavorites } from '@/lib/services/document-service';
 import { formatBytes, formatDate, getMaterialTypeBadge } from '@/lib/utils';
 import { config } from '@/lib/config';
@@ -30,26 +30,18 @@ export default async function DashboardPage() {
     redirect('/auth/login?redirectTo=/dashboard');
   }
 
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) {
     redirect('/auth/login?redirectTo=/dashboard');
   }
 
-  // Fetch student profile
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single();
-
-  // Fetch real, user-scoped submissions and saved favorites
-  const submissions = await getUserSubmissions(user.id);
-  const favorites = await getUserFavorites(user.id);
+  // Fetch student profile and user-scoped data in parallel
+  const [profile, submissions, favorites] = await Promise.all([
+    getCurrentUserProfile(user.id),
+    getUserSubmissions(user.id),
+    getUserFavorites(user.id),
+  ]);
 
   const approvedCount = submissions.filter((s) => s.status === 'approved').length;
   const pendingCount = submissions.filter((s) => s.status === 'pending').length;
@@ -67,7 +59,7 @@ export default async function DashboardPage() {
     },
     {
       title: 'Contribute Material',
-      description: 'Deposit lecture notes or question banks to institutional Google Drive.',
+      description: 'Deposit lecture notes or question banks to the institutional academic archive.',
       href: '/upload',
       icon: UploadCloud,
       actionLabel: 'Deposit Folio',

@@ -15,15 +15,57 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
+vi.mock('@/lib/config', () => ({
+  config: {
+    app: {
+      name: 'Clio',
+      collegeName: 'Academic Institution',
+    },
+    supabase: {
+      url: 'https://valid-test-project.supabase.co',
+      publishableKey: 'valid-publishable-key',
+    },
+    storage: {
+      maxFileSizeMb: 50,
+      maxFileSizeBytes: 50 * 1024 * 1024,
+    },
+  },
+}));
+
 // Mock Supabase client
+let mockRole = 'student';
 const mockEq = vi.fn();
 vi.mock('@/lib/supabase/client', () => ({
   createClient: () => ({
-    from: () => ({
-      delete: () => ({
-        eq: mockEq,
-      }),
-    }),
+    auth: {
+      getUser: vi.fn().mockImplementation(() =>
+        Promise.resolve({
+          data: { user: mockRole ? { id: 'test-user-id', email: 'test@example.com' } : null },
+          error: null,
+        })
+      ),
+    },
+    from: (table: string) => {
+      if (table === 'profiles') {
+        return {
+          select: () => ({
+            eq: () => ({
+              single: vi.fn().mockImplementation(() =>
+                Promise.resolve({
+                  data: { id: 'test-user-id', role: mockRole },
+                  error: null,
+                })
+              ),
+            }),
+          }),
+        };
+      }
+      return {
+        delete: () => ({
+          eq: mockEq,
+        }),
+      };
+    },
   }),
 }));
 
@@ -98,6 +140,7 @@ const mockSubmissions: DocumentRecord[] = [
 ];
 
 beforeEach(() => {
+  mockRole = 'student';
   vi.clearAllMocks();
   global.fetch = vi.fn();
 });
@@ -133,6 +176,33 @@ describe('Phase 4 — Upload Experience & Student Submissions', () => {
       expect(
         screen.getByText(/file size exceeds the 50 mb/i)
       ).toBeInTheDocument();
+    });
+
+    it('allows files exceeding 50MB when user is an administrator and shows admin unlimited upload status', async () => {
+      mockRole = 'admin';
+      render(<UploadPage />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Standard Limit: 50 MB \(Admin: No Limit\)/i)
+        ).toBeInTheDocument();
+      });
+
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      expect(fileInput).toBeInTheDocument();
+
+      // Create a 75MB mock file
+      const largeFile = new File(['x'.repeat(100)], 'admin-huge-folio.pdf', {
+        type: 'application/pdf',
+      });
+      Object.defineProperty(largeFile, 'size', { value: 75 * 1024 * 1024 });
+
+      fireEvent.change(fileInput, { target: { files: [largeFile] } });
+
+      // No error should be shown for admin
+      expect(screen.queryByText(/file size exceeds the 50 mb/i)).not.toBeInTheDocument();
+      expect(screen.getByText('admin-huge-folio.pdf')).toBeInTheDocument();
+      expect(screen.getByText(/Admin Unlimited Folio/i)).toBeInTheDocument();
     });
 
     it('accepts a valid PDF file and auto-populates title from filename', () => {

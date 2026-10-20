@@ -122,4 +122,16 @@ describe('Navbar Component Typography & Navigation', () => {
     const { container } = render(<Navbar />);
     expect(container.firstChild).toBeNull();
   });
+
+  it('renders compact Upgrade to Clio Plus action linking to /upgrade', () => {
+    currentPathname = '/documents';
+    render(<Navbar />);
+
+    const upgradeLinks = screen.getAllByRole('link', { name: /upgrade/i });
+    expect(upgradeLinks.length).toBeGreaterThanOrEqual(1);
+
+    const desktopUpgrade = upgradeLinks.find((el) => el.getAttribute('href') === '/upgrade');
+    expect(desktopUpgrade).toBeDefined();
+    expect(desktopUpgrade).toHaveAttribute('href', '/upgrade');
+  });
 });

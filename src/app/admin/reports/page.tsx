@@ -2,7 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { FileCheck2 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getCurrentUser, getCurrentUserProfile } from '@/lib/supabase/server';
 import { ReportsList } from './reports-list';
 import { ReportRecord } from '@/types/database';
 import { config } from '@/lib/config';
@@ -22,25 +22,19 @@ export default async function AdminReportsPage() {
     redirect('/auth/login?redirectTo=/admin/reports');
   }
 
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) {
     redirect('/auth/login?redirectTo=/admin/reports');
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, status')
-    .eq('id', user.id)
-    .single();
+  const profile = await getCurrentUserProfile(user.id);
 
   if (!profile || profile.role !== 'admin' || profile.status === 'suspended') {
     redirect('/unauthorized');
   }
+
+  const supabase = await createClient();
 
   let formattedReports: ReportRecord[] = [];
   try {

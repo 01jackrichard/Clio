@@ -15,6 +15,7 @@ import {
   FileText,
   ChevronDown,
   Share2,
+  Sparkles,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { config } from '@/lib/config';
@@ -246,7 +247,7 @@ export function Navbar() {
             </Link>
 
             {/* Desktop Navigation Links with animated indicator */}
-            <nav className="hidden md:flex items-center gap-7 lg:gap-8" aria-label="Primary">
+            <nav className="hidden md:flex items-center gap-5 lg:gap-7" aria-label="Primary">
               {navLinks.map((link) => {
                 if (link.authRequired && !profile) return null;
                 const active = isActive(link.href);
@@ -274,14 +275,14 @@ export function Navbar() {
             </nav>
           </div>
 
-          {/* Desktop Right Actions */}
-          <div className="hidden md:flex items-center gap-4">
+          {/* Desktop Right Actions: [Contribute] [Upgrade to Clio Plus] [Profile ▾] */}
+          <div className="hidden md:flex items-center gap-2.5 lg:gap-3">
             {/* Prominent Upload Action */}
             <Link
               href="/upload"
               prefetch={true}
               className={cn(
-                'group inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-medium border transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-oxblood focus-visible:ring-offset-2',
+                'group inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium border transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-oxblood focus-visible:ring-offset-2',
                 pathname === '/upload'
                   ? 'bg-ink text-paper border-ink shadow-xs'
                   : 'bg-card text-ink border-ink/25 hover:border-oxblood hover:text-oxblood hover:bg-bone/40'
@@ -289,6 +290,23 @@ export function Navbar() {
             >
               <UploadCloud className="w-3.5 h-3.5 text-oxblood shrink-0 transition-transform duration-200 group-hover:-translate-y-0.5" aria-hidden="true" />
               <span>Contribute</span>
+            </Link>
+
+            {/* Compact Upgrade to Clio Plus Action */}
+            <Link
+              href="/upgrade"
+              prefetch={true}
+              className={cn(
+                'group inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-oxblood focus-visible:ring-offset-2 whitespace-nowrap',
+                pathname === '/upgrade'
+                  ? 'bg-oxblood text-paper border-oxblood shadow-xs'
+                  : 'bg-card text-oxblood border-oxblood/35 hover:border-oxblood hover:bg-oxblood/5'
+              )}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-oxblood shrink-0 transition-transform duration-200 group-hover:scale-110" aria-hidden="true" />
+              <span>
+                Upgrade<span className="hidden lg:inline"> to Clio Plus</span>
+              </span>
             </Link>
 
             {loading ? (
@@ -328,6 +346,20 @@ export function Navbar() {
                     </div>
 
                     <div className="py-1">
+                      <Link
+                        href="/upgrade"
+                        prefetch={true}
+                        onClick={() => setUserDropdownOpen(false)}
+                        className="flex items-center justify-between px-4 py-2 text-xs text-oxblood hover:bg-bone transition-colors font-medium focus-visible:bg-bone focus-visible:outline-none"
+                      >
+                        <span className="flex items-center gap-2.5">
+                          <Sparkles className="w-3.5 h-3.5 text-oxblood" />
+                          <span>Upgrade to Clio Plus</span>
+                        </span>
+                        <span className="meta-mono text-[9px] uppercase tracking-wider px-1 py-0.5 bg-oxblood/10 text-oxblood border border-oxblood/20 font-medium">
+                          50 GB
+                        </span>
+                      </Link>
                       <Link
                         href="/dashboard"
                         prefetch={true}
@@ -472,6 +504,24 @@ export function Navbar() {
               )}
             >
               Catalogue
+            </Link>
+
+            <Link
+              href="/upgrade"
+              prefetch={true}
+              onClick={() => setMobileMenuOpen(false)}
+              className={cn(
+                'min-h-[44px] flex items-center justify-between py-2 text-sm font-medium border-b border-ink/10 transition-colors',
+                isActive('/upgrade') ? 'text-oxblood font-semibold' : 'text-oxblood hover:text-oxblood'
+              )}
+            >
+              <span className="flex items-center gap-2">
+                <Sparkles className="w-3.5 h-3.5 text-oxblood" />
+                <span>Upgrade to Clio Plus</span>
+              </span>
+              <span className="meta-mono text-[10px] uppercase tracking-wider px-1.5 py-0.5 bg-oxblood/10 text-oxblood border border-oxblood/20 font-medium">
+                50 GB+
+              </span>
             </Link>
 
             {profile && (

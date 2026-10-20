@@ -44,3 +44,6 @@ next-env.d.ts
 # backups
 liquid-sculpture-hero.txt
 
+# scratch files
+scratch/
+

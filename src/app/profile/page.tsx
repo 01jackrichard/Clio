@@ -1,15 +1,13 @@
 import React from 'react';
 import { redirect } from 'next/navigation';
 import { Lock, Calendar, Mail, GraduationCap } from 'lucide-react';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getCurrentUser } from '@/lib/supabase/server';
 import { formatDate } from '@/lib/utils';
 import { ProfileForm } from './profile-form';
 import { config } from '@/lib/config';
 import { Container, PageHeader } from '@/components/ui/container';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { getStorageUsage } from '@/lib/services/storage-quota-service';
-import { PrivateStoragePanel } from '@/components/storage/private-storage-panel';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,26 +16,20 @@ export default async function ProfilePage() {
     redirect('/auth/login?redirectTo=/profile');
   }
 
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) {
     redirect('/auth/login?redirectTo=/profile');
   }
 
-  const [profileRes, storageUsage] = await Promise.all([
-    supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single(),
-    getStorageUsage(user.id),
-  ]);
+  const supabase = await createClient();
 
-  const profile = profileRes.data;
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .single();
+
   const displayName = profile?.display_name || user.email?.split('@')[0] || 'Scholar';
   const initialLetter = displayName.charAt(0).toUpperCase();
   const isProfileIncomplete = !profile?.department || !profile?.academic_year;
@@ -140,9 +132,6 @@ export default async function ProfilePage() {
               </p>
             </Card>
           )}
-
-          {/* Private Storage Quota Panel */}
-          <PrivateStoragePanel initialUsage={storageUsage} />
         </div>
 
         {/* Right Column: Profile Form */}

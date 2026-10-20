@@ -86,7 +86,7 @@ export default function UpgradePage() {
                 </li>
                 <li className="flex items-start gap-2.5">
                   <CheckCircle2 className="w-4 h-4 text-oxblood shrink-0 mt-0.5" />
-                  <span>Verified institutional Google Drive preservation</span>
+                  <span>Verified institutional archival preservation</span>
                 </li>
                 <li className="flex items-start gap-2.5">
                   <CheckCircle2 className="w-4 h-4 text-oxblood shrink-0 mt-0.5" />

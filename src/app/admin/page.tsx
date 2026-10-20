@@ -13,7 +13,7 @@ import {
   Server,
   Layers,
 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getCurrentUser, getCurrentUserProfile } from '@/lib/supabase/server';
 import { formatBytes } from '@/lib/utils';
 import { config } from '@/lib/config';
 import { verifyDriveConnection } from '@/lib/drive/google-drive-service';
@@ -30,28 +30,22 @@ export default async function AdminDashboardPage() {
     redirect('/auth/login?redirectTo=/admin');
   }
 
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) {
     redirect('/auth/login?redirectTo=/admin');
   }
 
-  // Server-side administrator verification
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, status')
-    .eq('id', user.id)
-    .single();
+  // Server-side administrator verification (cached per request)
+  const profile = await getCurrentUserProfile(user.id);
 
   if (!profile || profile.role !== 'admin' || profile.status === 'suspended') {
     redirect('/unauthorized');
   }
 
-  // Aggregate metrics across canonical entities
+  const supabase = await createClient();
+
+  // Concurrently run all metrics queries AND Google Drive verification in parallel
   const [
     approvedRes,
     pendingRes,
@@ -59,6 +53,7 @@ export default async function AdminDashboardPage() {
     usersRes,
     reportsRes,
     totalsRes,
+    driveConnection,
   ] = await Promise.all([
     supabase.from('documents').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
     supabase.from('documents').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
@@ -66,6 +61,12 @@ export default async function AdminDashboardPage() {
     supabase.from('profiles').select('*', { count: 'exact', head: true }),
     supabase.from('reports').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
     supabase.from('documents').select('file_size, download_count').eq('status', 'approved'),
+    verifyDriveConnection().catch((): Awaited<ReturnType<typeof verifyDriveConnection>> => ({
+      configured: false,
+      canRefresh: false,
+      folderFound: false,
+      error: 'Google Drive check failed during runtime verification.',
+    })),
   ]);
 
   let totalIndexedSizeBytes = 0;
@@ -80,19 +81,6 @@ export default async function AdminDashboardPage() {
 
   const pendingCount = pendingRes.count ?? 0;
   const pendingReportsCount = reportsRes.count ?? 0;
-
-  // Safe Google Drive connection check (never exposes client secrets or tokens)
-  let driveConnection;
-  try {
-    driveConnection = await verifyDriveConnection();
-  } catch {
-    driveConnection = {
-      configured: false,
-      canRefresh: false,
-      folderFound: false,
-      error: 'Google Drive check failed during runtime verification.',
-    };
-  }
 
   return (
     <Container className="py-8 sm:py-12 space-y-8">

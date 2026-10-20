@@ -177,6 +177,19 @@ describe('Direct Google Drive Upload Pipeline', () => {
       expect(result.isValid).toBe(false);
       expect(result.error).toContain('File size exceeds');
     });
+
+    it('accepts files exceeding 50MB when maxSizeBytes is Infinity (admin privilege)', () => {
+      const largeBuffer = Buffer.alloc(1024 * 1024 * 55); // 55 MB
+      largeBuffer.write('%PDF-1.5', 0);
+      const result = validateAcademicDocument(
+        'large-handbook.pdf',
+        'application/pdf',
+        largeBuffer,
+        Infinity
+      );
+      expect(result.isValid).toBe(true);
+      expect(result.detectedMimeType).toBe('application/pdf');
+    });
   });
 
   describe('2. Google Drive OAuth URL & Narrow Scope Contract', () => {

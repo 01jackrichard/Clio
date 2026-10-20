@@ -73,13 +73,14 @@ export async function GET(request: NextRequest) {
     try {
       const supabase = await createClient();
 
-      // Search approved public documents (RLS & public visibility enforced)
+      // Search approved public documents (RLS & public visibility enforced; private documents strictly excluded)
       let docQuery = supabase
         .from('documents')
         .select(
           'id, title, subject, subject_code, institution, department, material_type'
         )
-        .eq('status', 'approved');
+        .eq('status', 'approved')
+        .or('visibility.eq.public,visibility.is.null');
 
       // Filter institution if active and not 'all'
       if (institutionParam && institutionParam !== 'all') {
@@ -101,7 +102,32 @@ export async function GET(request: NextRequest) {
         docQuery = docQuery.limit(6);
       }
 
-      const { data: docs, error: docError } = await docQuery;
+      let { data: docs, error: docError } = await docQuery;
+
+      // Schema resilience fallback if visibility column is not present
+      if (docError && (docError.code === '42703' || docError.message?.includes('visibility'))) {
+        let fallbackQuery = supabase
+          .from('documents')
+          .select('id, title, subject, subject_code, institution, department, material_type')
+          .eq('status', 'approved');
+
+        if (institutionParam && institutionParam !== 'all') {
+          const instTarget = resolveInstitutionFilter(institutionParam);
+          if (instTarget) {
+            fallbackQuery = fallbackQuery.ilike('institution', `%${instTarget}%`);
+          }
+        }
+        if (safeQ) {
+          fallbackQuery = fallbackQuery
+            .or(`title.ilike.%${safeQ}%,subject.ilike.%${safeQ}%,subject_code.ilike.%${safeQ}%`)
+            .limit(6);
+        } else {
+          fallbackQuery = fallbackQuery.limit(6);
+        }
+        const fallbackRes = await fallbackQuery;
+        docs = fallbackRes.data;
+        docError = fallbackRes.error;
+      }
 
       if (!docError && docs) {
         for (const doc of docs) {

@@ -13,7 +13,7 @@ import {
   Lock,
   BookOpen,
 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/server';
+import { getCurrentUser, getCurrentUserProfile } from '@/lib/supabase/server';
 import { getDocumentById } from '@/lib/services/document-service';
 import { formatDate, getMaterialTypeBadge } from '@/lib/utils';
 import { PdfViewer } from '@/components/pdf-viewer';
@@ -41,10 +41,7 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
 
   // Check privacy access grant
   let isUnlocked = true;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   const isOwner = Boolean(user && user.id === document.uploader_id);
 
@@ -55,11 +52,7 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
       isUnlocked = true;
     } else {
       if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', user.id)
-          .single();
+        const profile = await getCurrentUserProfile(user.id);
         if (profile?.role === 'admin') isUnlocked = true;
 
         if (!isUnlocked) {
@@ -229,15 +222,16 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
               </h2>
               <span className="meta-mono text-ash text-xs hidden sm:inline">
                 {document.visibility === 'private'
-                  ? 'Clio Secure Streaming Proxy · Authenticated Session'
-                  : 'Google Drive Embedded Engine · In-App Reading'}
+                  ? 'Protected Folio · Authenticated Session'
+                  : 'Clio Archival Reader · Institutional Folio'}
               </span>
             </div>
 
             <PdfViewer
               documentId={document.id}
               documentTitle={document.title}
-              driveFileId={document.drive_file_id}
+              originalFilename={document.original_filename}
+              fileSize={document.file_size}
             />
           </section>
         ) : (

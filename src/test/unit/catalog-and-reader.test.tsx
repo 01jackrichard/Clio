@@ -74,7 +74,12 @@ describe('Phase 3 — Academic Library & Document Reader Components', () => {
   });
 
   describe('PdfViewer Component', () => {
-    it('renders iframe with validated Google Drive embed URL and toolbar', () => {
+    it('renders iframe with authenticated Clio streaming URL and toolbar', async () => {
+      (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+      });
+
       render(
         <PdfViewer
           documentId="doc-123"
@@ -84,13 +89,13 @@ describe('Phase 3 — Academic Library & Document Reader Components', () => {
       );
 
       expect(screen.getByText('Advanced Thermodynamics & Entropy Notes')).toBeInTheDocument();
-      expect(screen.getByText(/Google Drive In-App Reader/i)).toBeInTheDocument();
+      expect(screen.getByText('Document Reader')).toBeInTheDocument();
 
-      const iframe = screen.getByTitle(/Academic Document Preview/i);
+      const iframe = await screen.findByTitle(/Academic Document Reader/i);
       expect(iframe).toBeInTheDocument();
       expect(iframe).toHaveAttribute(
         'src',
-        'https://drive.google.com/file/d/1AbCdEfGhIjKlMnOpQrStUvWxYz/preview'
+        '/api/documents/doc-123/raw#toolbar=1&navpanes=1'
       );
     });
 
@@ -121,7 +126,7 @@ describe('Phase 3 — Academic Library & Document Reader Components', () => {
         })
         .mockResolvedValueOnce({
           ok: true,
-          json: async () => ({ downloadUrl: 'https://drive.google.com/uc?id=123&export=download' }),
+          json: async () => ({ downloadUrl: '/api/documents/doc-123/raw?download=true' }),
         });
 
       render(
@@ -142,7 +147,7 @@ describe('Phase 3 — Academic Library & Document Reader Components', () => {
       await waitFor(() => {
         expect(global.fetch).toHaveBeenCalledWith('/api/documents/doc-123/download');
         expect(windowOpenSpy).toHaveBeenCalledWith(
-          'https://drive.google.com/uc?id=123&export=download',
+          '/api/documents/doc-123/raw?download=true',
           '_blank',
           'noopener,noreferrer'
         );

@@ -1,10 +1,14 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getCurrentUser, getCurrentUserProfile } from '@/lib/supabase/server';
 import { config } from '@/lib/config';
 import { resolveDisplayName } from '@/lib/utils';
+import { getStorageUsage } from '@/lib/services/storage-quota-service';
 
 export interface CatalogueMetrics {
   myContributions: number;
   savedFolios: number;
+  privateStorageUsedBytes?: number;
+  privateStorageQuotaBytes?: number;
+  privateStorageFormatted?: string;
   archiveResources?: number;
   contributors?: number;
 }
@@ -35,51 +39,51 @@ export async function getCatalogueMetrics(): Promise<CatalogueAuthStats> {
   }
 
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
 
-    if (authError || !user) {
+    if (!user) {
       return fallbackGuest;
     }
 
-    // Authoritative profile & role lookup
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id, role, status, display_name')
-      .eq('id', user.id)
-      .maybeSingle();
+    // Authoritative profile & role lookup (cached per request)
+    const profile = await getCurrentUserProfile(user.id);
 
     const isAdmin = profile?.role === 'admin' && profile?.status !== 'suspended';
     const displayName = resolveDisplayName(profile?.display_name, user.user_metadata, user.email);
 
+    const supabase = await createClient();
+
     // Parallelize queries to eliminate sequential database round-trips
     if (isAdmin) {
-      const [contributionsRes, favoritesRes, archiveRes, contributorRes] = await Promise.all([
-        supabase
-          .from('documents')
-          .select('*', { count: 'exact', head: true })
-          .eq('uploader_id', user.id)
-          .eq('status', 'approved'),
-        supabase
-          .from('favorites')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id),
-        supabase
-          .from('documents')
-          .select('*', { count: 'exact', head: true })
-          .eq('status', 'approved'),
-        supabase
-          .from('documents')
-          .select('uploader_id')
-          .eq('status', 'approved'),
-      ]);
+      const [contributionsRes, favoritesRes, archiveRes, contributorRes, storageUsage] =
+        await Promise.all([
+          supabase
+            .from('documents')
+            .select('*', { count: 'exact', head: true })
+            .eq('uploader_id', user.id)
+            .eq('status', 'approved'),
+          supabase
+            .from('favorites')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', user.id),
+          supabase
+            .from('documents')
+            .select('*', { count: 'exact', head: true })
+            .eq('status', 'approved'),
+          supabase
+            .from('documents')
+            .select('uploader_id')
+            .eq('status', 'approved'),
+          getStorageUsage(user.id),
+        ]);
 
       const distinctContributors = contributorRes.data
         ? new Set(contributorRes.data.map((r) => r.uploader_id).filter(Boolean)).size
         : 0;
+
+      const usedGb = (storageUsage.usedBytes / 1_000_000_000).toFixed(1);
+      const quotaGb = Math.round(storageUsage.quotaBytes / 1_000_000_000);
+      const privateStorageFormatted = `${usedGb} / ${quotaGb} GB`;
 
       return {
         isAuthenticated: true,
@@ -88,14 +92,17 @@ export async function getCatalogueMetrics(): Promise<CatalogueAuthStats> {
         metrics: {
           myContributions: contributionsRes.count ?? 0,
           savedFolios: favoritesRes.count ?? 0,
+          privateStorageUsedBytes: storageUsage.usedBytes,
+          privateStorageQuotaBytes: storageUsage.quotaBytes,
+          privateStorageFormatted,
           archiveResources: archiveRes.count ?? 0,
           contributors: distinctContributors,
         },
       };
     }
 
-    // Normal user: return only personal metrics (parallelized)
-    const [contributionsRes, favoritesRes] = await Promise.all([
+    // Normal user: return personal metrics (contributions, saved folios, private storage)
+    const [contributionsRes, favoritesRes, storageUsage] = await Promise.all([
       supabase
         .from('documents')
         .select('*', { count: 'exact', head: true })
@@ -105,7 +112,12 @@ export async function getCatalogueMetrics(): Promise<CatalogueAuthStats> {
         .from('favorites')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', user.id),
+      getStorageUsage(user.id),
     ]);
+
+    const usedGb = (storageUsage.usedBytes / 1_000_000_000).toFixed(1);
+    const quotaGb = Math.round(storageUsage.quotaBytes / 1_000_000_000);
+    const privateStorageFormatted = `${usedGb} / ${quotaGb} GB`;
 
     return {
       isAuthenticated: true,
@@ -114,6 +126,9 @@ export async function getCatalogueMetrics(): Promise<CatalogueAuthStats> {
       metrics: {
         myContributions: contributionsRes.count ?? 0,
         savedFolios: favoritesRes.count ?? 0,
+        privateStorageUsedBytes: storageUsage.usedBytes,
+        privateStorageQuotaBytes: storageUsage.quotaBytes,
+        privateStorageFormatted,
       },
     };
   } catch (err: unknown) {

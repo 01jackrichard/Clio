@@ -5,6 +5,7 @@ import { config } from '@/lib/config';
 import { validateAcademicDocument, sanitizeFilename } from '@/lib/drive/file-validation';
 import {
   uploadFileToDrive,
+  deleteFileFromDrive,
   setDriveFilePublicReader,
   isGoogleDriveConfigured,
   getGoogleDriveConfig,
@@ -63,6 +64,8 @@ export async function POST(request: NextRequest) {
         { status: 403 }
       );
     }
+
+    const isAdmin = profile.role === 'admin';
 
     // 3. Enforce velocity rate limit
     const windowStart = new Date(
@@ -157,12 +160,13 @@ export async function POST(request: NextRequest) {
     const validatedData = validationResult.data;
 
     // 6. Validate file content and binary magic bytes
+    // Admin users have no upload size limit (Infinity); standard users have 50 MB limit
     const fileBuffer = Buffer.from(await file.arrayBuffer());
     const fileValidation = validateAcademicDocument(
       file.name,
       file.type,
       fileBuffer,
-      config.storage.maxFileSizeBytes
+      isAdmin ? Infinity : config.storage.maxFileSizeBytes
     );
 
     if (!fileValidation.isValid) {
@@ -190,9 +194,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 7.5 Enforce 50 GB private storage quota for private documents
+    // 7.5 Enforce 50 GB private storage quota for private documents (waived for admin)
     let storageReservation: { token: string; release: () => void } | null = null;
-    if (validatedData.visibility === 'private') {
+    if (validatedData.visibility === 'private' && !isAdmin) {
       const quotaCheck = await checkPrivateQuota(user.id, fileBuffer.length);
       if (!quotaCheck.allowed) {
         return NextResponse.json(
@@ -368,8 +372,16 @@ export async function POST(request: NextRequest) {
 
     if (!registeredDoc) {
       console.error('[DirectUpload] Database insertion error:', insertError);
+      // Safe compensating cleanup: remove orphaned stored file if database record failed
+      if (driveUpload?.fileId) {
+        try {
+          await deleteFileFromDrive(driveUpload.fileId);
+        } catch (cleanupErr) {
+          console.warn('[DirectUpload] Compensating cleanup failed for Drive file:', cleanupErr);
+        }
+      }
       return NextResponse.json(
-        { error: 'File was uploaded to Google Drive, but catalog registration failed. Please contact an administrator.' },
+        { error: 'Document upload failed during catalogue registration. Please try again.' },
         { status: 500 }
       );
     }

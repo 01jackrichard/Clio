@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { extractDriveFileId, getDriveDownloadUrl, getDriveViewUrl } from '@/lib/drive/urls';
+import { extractDriveFileId } from '@/lib/drive/urls';
 import { verifyUnlockToken } from '@/lib/security/password-service';
 import { hasValidAccessGrant } from '@/lib/services/sharing-service';
 
@@ -108,7 +108,7 @@ export async function GET(
       }
     }
 
-    // 5. Resolve URLs
+    // 5. Resolve archival file identifier
     let driveId: string | null = null;
 
     if (document.status === 'approved') {
@@ -116,7 +116,7 @@ export async function GET(
         return NextResponse.json(
           {
             error:
-              'This document is stored on legacy storage or lacks canonical Google Drive registration.',
+              'This document is stored on legacy storage or lacks canonical archival registration.',
           },
           { status: 422 }
         );
@@ -132,19 +132,14 @@ export async function GET(
 
     if (!driveId) {
       return NextResponse.json(
-        { error: 'This document does not have an associated Google Drive download link.' },
+        { error: 'This document does not have an associated archival file.' },
         { status: 404 }
       );
     }
 
-    // For private files, direct to the secure server streaming route
-    const downloadUrl = isPrivate
-      ? `/api/documents/${id}/raw`
-      : getDriveDownloadUrl(driveId) || getDriveViewUrl(driveId)!;
-
-    const viewUrl = isPrivate
-      ? `/api/documents/${id}/raw`
-      : getDriveViewUrl(driveId)!;
+    // Always route through Clio's authenticated streaming delivery endpoint
+    const downloadUrl = `/api/documents/${id}/raw?download=true`;
+    const viewUrl = `/api/documents/${id}/raw`;
 
     // 6. Asynchronously record download log and atomic increment
     try {
@@ -171,7 +166,6 @@ export async function GET(
       viewUrl,
       isPrivate,
       filename: document.original_filename,
-      storageProvider: 'google_drive',
     });
   } catch (err: unknown) {
     console.error('Error generating download URL:', err);

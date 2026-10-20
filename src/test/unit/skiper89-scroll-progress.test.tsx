@@ -98,7 +98,12 @@ describe('CLIO — Skiper UI Skiper89 Scroll Progress Integration', () => {
   });
 
   describe('2. Document Reader Integration & State Guarding', () => {
-    it('renders Skiper89 when document preview is active and loaded', () => {
+    it('renders Skiper89 when document preview is active and loaded', async () => {
+      (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+      });
+
       render(
         <PdfViewer
           documentId="doc-thermo-01"
@@ -108,7 +113,7 @@ describe('CLIO — Skiper UI Skiper89 Scroll Progress Integration', () => {
       );
 
       // Simulate iframe finishing load
-      const iframe = screen.getByTitle(/Academic Document Preview/i);
+      const iframe = await screen.findByTitle(/Academic Document Reader/i);
       expect(iframe).toBeInTheDocument();
       fireEvent.load(iframe);
 
@@ -135,7 +140,7 @@ describe('CLIO — Skiper UI Skiper89 Scroll Progress Integration', () => {
       );
 
       // Shows Clio loading message
-      expect(screen.getByText(/Initializing in-app Google Drive preview/i)).toBeInTheDocument();
+      expect(screen.getByText(/Loading document\.\.\./i)).toBeInTheDocument();
 
       // Skiper89 must not be displayed over loading states
       expect(screen.queryByRole('status')).not.toBeInTheDocument();
@@ -144,7 +149,7 @@ describe('CLIO — Skiper UI Skiper89 Scroll Progress Integration', () => {
     it('does NOT render Skiper89 when document preview encounters an error', async () => {
       (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: false,
-        json: async () => ({ error: 'Google Drive file access restricted' }),
+        status: 403,
       });
 
       render(
@@ -155,14 +160,19 @@ describe('CLIO — Skiper UI Skiper89 Scroll Progress Integration', () => {
       );
 
       // Wait for error state to display
-      const errorHeading = await screen.findByText(/Document Preview Unavailable/i);
+      const errorHeading = await screen.findByText(/Document Unavailable/i);
       expect(errorHeading).toBeInTheDocument();
 
       // Skiper89 must not be rendered over error cards
       expect(screen.queryByRole('status')).not.toBeInTheDocument();
     });
 
-    it('adapts position gracefully when toggling fullscreen reader', () => {
+    it('adapts position gracefully when toggling fullscreen reader', async () => {
+      (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+      });
+
       render(
         <PdfViewer
           documentId="doc-fs"
@@ -171,7 +181,7 @@ describe('CLIO — Skiper UI Skiper89 Scroll Progress Integration', () => {
         />
       );
 
-      const iframe = screen.getByTitle(/Academic Document Preview/i);
+      const iframe = await screen.findByTitle(/Academic Document Reader/i);
       fireEvent.load(iframe);
 
       const indicator = screen.getByRole('status');

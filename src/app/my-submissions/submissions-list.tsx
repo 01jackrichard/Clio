@@ -73,16 +73,34 @@ export function MySubmissionsList({
 
     setDeletingId(docId);
     try {
-      const supabase = createClient();
-      const { error } = await supabase.from('documents').delete().eq('id', docId);
-
-      if (error) {
-        alert(`Failed to withdraw submission: ${error.message}`);
-      } else {
+      const res = await fetch(`/api/documents/${docId}`, { method: 'DELETE' });
+      if (res.ok) {
         setSubmissions((prev) => prev.filter((s) => s.id !== docId));
+      } else {
+        const data = await res.json().catch(() => ({}));
+        // Fallback to client delete
+        const supabase = createClient();
+        const { error } = await supabase.from('documents').delete().eq('id', docId);
+
+        if (error) {
+          alert(`Failed to withdraw submission: ${data.error || error.message}`);
+        } else {
+          setSubmissions((prev) => prev.filter((s) => s.id !== docId));
+        }
       }
     } catch {
-      alert('Network error encountered while withdrawing submission.');
+      // Graceful fallback to client delete
+      try {
+        const supabase = createClient();
+        const { error } = await supabase.from('documents').delete().eq('id', docId);
+        if (!error) {
+          setSubmissions((prev) => prev.filter((s) => s.id !== docId));
+        } else {
+          alert('Network error encountered while withdrawing submission.');
+        }
+      } catch {
+        alert('Network error encountered while withdrawing submission.');
+      }
     } finally {
       setDeletingId(null);
     }

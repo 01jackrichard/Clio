@@ -2,7 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { BookOpen } from 'lucide-react';
-import { createClient } from '@/lib/supabase/server';
+import { getCurrentUser } from '@/lib/supabase/server';
 import { getUserFavorites } from '@/lib/services/document-service';
 import { config } from '@/lib/config';
 import { Container, PageHeader } from '@/components/ui/container';
@@ -16,11 +16,7 @@ export default async function FavoritesPage() {
     redirect('/auth/login?redirectTo=/favorites');
   }
 
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) {
     redirect('/auth/login?redirectTo=/favorites');

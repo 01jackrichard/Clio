@@ -99,7 +99,7 @@ export function Footer() {
               <li className="text-paper/70 text-xs pt-3 leading-relaxed">
                 <span className="block font-medium text-paper">{config.app.collegeName}</span>
                 <span className="block mt-0.5">Undergraduate & Research Division</span>
-                <span className="block meta-mono text-paper/50 mt-1">Google Drive Embedded PDF Library</span>
+                <span className="block meta-mono text-paper/50 mt-1">Archival Document Library</span>
               </li>
             </ul>
 

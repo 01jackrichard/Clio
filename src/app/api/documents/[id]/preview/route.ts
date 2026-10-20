@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { extractDriveFileId, getDriveEmbedUrl } from '@/lib/drive/urls';
+import { extractDriveFileId } from '@/lib/drive/urls';
 import { verifyUnlockToken } from '@/lib/security/password-service';
+import { hasValidAccessGrant } from '@/lib/services/sharing-service';
 
 export async function GET(
   request: NextRequest,
@@ -83,9 +84,14 @@ export async function GET(
       );
     }
 
-    // 4. Private password check
+    // 4. Private password & share grant check
     const isPrivate = document.visibility === 'private';
+    let hasGrant = false;
     if (isPrivate && !isOwner && !isAdmin) {
+      hasGrant = await hasValidAccessGrant(user.id, 'document', id);
+    }
+
+    if (isPrivate && !isOwner && !isAdmin && !hasGrant) {
       const cookieToken = request.cookies.get(`clio_unlock_${id}`)?.value;
       const headerToken = request.headers.get('x-clio-unlock-token');
       const token = cookieToken || headerToken;
@@ -102,7 +108,7 @@ export async function GET(
       }
     }
 
-    // 5. Resolve Google Drive File ID
+    // 5. Resolve archival file identifier
     let driveId: string | null = null;
 
     if (document.status === 'approved') {
@@ -110,7 +116,7 @@ export async function GET(
         return NextResponse.json(
           {
             error:
-              'This document is stored on legacy storage or lacks canonical Google Drive registration.',
+              'This document is stored on legacy storage or lacks canonical archival registration.',
           },
           { status: 422 }
         );
@@ -126,23 +132,19 @@ export async function GET(
 
     if (!driveId) {
       return NextResponse.json(
-        { error: 'This document does not have an associated Google Drive preview identifier.' },
+        { error: 'This document does not have an associated archival file.' },
         { status: 404 }
       );
     }
 
-    // For private documents, use the secure streaming proxy route
-    const previewUrl = isPrivate
-      ? `/api/documents/${id}/raw`
-      : getDriveEmbedUrl(driveId);
+    // Always route previews through Clio's authenticated streaming delivery endpoint
+    const previewUrl = `/api/documents/${id}/raw`;
 
     return NextResponse.json({
       success: true,
       previewUrl,
-      driveFileId: isPrivate ? null : driveId,
       isPrivate,
       title: document.title,
-      storageProvider: 'google_drive',
     });
   } catch (err: unknown) {
     console.error('Error generating preview URL:', err);

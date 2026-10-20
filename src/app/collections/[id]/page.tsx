@@ -10,7 +10,7 @@ import {
   Plus,
   FileText,
 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/server';
+import { getCurrentUser, getCurrentUserProfile } from '@/lib/supabase/server';
 import { getAdminClient } from '@/lib/supabase/admin';
 import { verifyUnlockToken } from '@/lib/security/password-service';
 import { hasValidAccessGrant } from '@/lib/services/sharing-service';
@@ -30,7 +30,6 @@ interface CollectionPageProps {
 export default async function CollectionDetailPage({ params }: CollectionPageProps) {
   const { id } = await params;
   const adminClient = getAdminClient();
-  const supabase = await createClient();
 
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
   let query = adminClient.from('collections').select('*');
@@ -47,18 +46,12 @@ export default async function CollectionDetailPage({ params }: CollectionPagePro
     notFound();
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   const isOwner = user ? collection.user_id === user.id : false;
   let isAdmin = false;
   if (user) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
+    const profile = await getCurrentUserProfile(user.id);
     isAdmin = profile?.role === 'admin';
   }
 

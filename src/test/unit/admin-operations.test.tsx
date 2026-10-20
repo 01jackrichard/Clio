@@ -139,6 +139,14 @@ vi.mock('@/lib/supabase/server', () => ({
       };
     },
   })),
+  getCurrentUser: vi.fn(async () => {
+    const res = await mockGetUser();
+    return res?.data?.user ?? null;
+  }),
+  getCurrentUserProfile: vi.fn(async () => {
+    const res = await mockProfileSingle();
+    return res?.data ?? null;
+  }),
 }));
 
 // Mock fetch

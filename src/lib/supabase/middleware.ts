@@ -34,6 +34,8 @@ export async function updateSession(request: NextRequest) {
     (c) => c.name.startsWith('sb-') || c.name.includes('auth-token') || c.name.includes('supabase')
   );
 
+  const requiresAuthCheck = isStudentRoute || isAdminRoute || isAuthRoute;
+
   if (!hasAuthCookies) {
     if (isStudentRoute || isAdminRoute) {
       const url = request.nextUrl.clone();
@@ -42,6 +44,11 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url);
     }
     // Guest accessing public page: bypass remote network round-trip entirely
+    return supabaseResponse;
+  }
+
+  // Fast-path: If the route is public (e.g. /documents, /), do not block middleware on remote getUser()
+  if (!requiresAuthCheck) {
     return supabaseResponse;
   }
 
@@ -84,6 +91,8 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  let adminProfile: { role?: string; status?: string } | null = null;
+
   // If visiting admin route, verify role from profiles table
   if (user && isAdminRoute) {
     const { data: profile } = await supabase
@@ -92,11 +101,27 @@ export async function updateSession(request: NextRequest) {
       .eq('id', user.id)
       .single();
 
+    adminProfile = profile;
+
     if (!profile || profile.role !== 'admin' || profile.status === 'suspended') {
       const url = request.nextUrl.clone();
       url.pathname = '/unauthorized';
       return NextResponse.redirect(url);
     }
+  }
+
+  // Forward verified auth headers to downstream Server Components so they don't repeat getUser()
+  if (user) {
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set('x-clio-user-id', user.id);
+    if (user.email) requestHeaders.set('x-clio-user-email', user.email);
+    if (adminProfile?.role) requestHeaders.set('x-clio-user-role', adminProfile.role);
+
+    supabaseResponse = NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    });
   }
 
   return supabaseResponse;

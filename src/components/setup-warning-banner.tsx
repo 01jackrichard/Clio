@@ -81,10 +81,10 @@ export function SetupWarningBanner({
             <div className="bg-paper p-3 border border-ink/15">
               <div className="flex items-center gap-1.5 font-medium mb-1 text-ink">
                 <Key className="w-3.5 h-3.5 text-oxblood" />
-                <span className="meta-mono">02. Google Drive Repository</span>
+                <span className="meta-mono">02. Storage Repository</span>
               </div>
               <p className="text-ash text-[11px] leading-relaxed">
-                PDFs are stored in your central Google Drive institutional repository and embedded directly in-app.
+                PDFs are stored in your central institutional repository and served securely in-app.
               </p>
             </div>
 

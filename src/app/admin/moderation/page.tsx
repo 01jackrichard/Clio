@@ -2,7 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { FilePlus2 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getCurrentUser, getCurrentUserProfile } from '@/lib/supabase/server';
 import { ModerationQueue } from './moderation-queue';
 import { DocumentRecord } from '@/types/database';
 import { config } from '@/lib/config';
@@ -24,25 +24,19 @@ export default async function ModerationQueuePage() {
     redirect('/auth/login?redirectTo=/admin/moderation');
   }
 
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) {
     redirect('/auth/login?redirectTo=/admin/moderation');
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, status')
-    .eq('id', user.id)
-    .single();
+  const profile = await getCurrentUserProfile(user.id);
 
   if (!profile || profile.role !== 'admin' || profile.status === 'suspended') {
     redirect('/unauthorized');
   }
+
+  const supabase = await createClient();
 
   // Fetch pending documents with safe fallback
   let formattedDocs: DocumentRecord[] = [];

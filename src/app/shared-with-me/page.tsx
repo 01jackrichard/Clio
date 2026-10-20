@@ -1,6 +1,6 @@
 import React from 'react';
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { getCurrentUser } from '@/lib/supabase/server';
 import { config } from '@/lib/config';
 import { getSharedWithMeResources } from '@/lib/services/sharing-service';
 import { Container, PageHeader } from '@/components/ui/container';
@@ -19,10 +19,7 @@ export default async function SharedWithMePage() {
     redirect('/auth/login?redirectTo=/shared-with-me');
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) {
     redirect('/auth/login?redirectTo=/shared-with-me');
