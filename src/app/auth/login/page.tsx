@@ -8,18 +8,22 @@ import { createClient } from '@/lib/supabase/client';
 import { config } from '@/lib/config';
 import { sanitizeRedirectUrl } from '@/lib/utils';
 import { Button, Input, Card, CardContent, ClioEmblem } from '@/components/ui';
+import { GoogleAuthButton, AuthMethodDivider } from '@/components/auth/google-auth-button';
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = sanitizeRedirectUrl(searchParams.get('redirectTo'), '/documents');
   const registeredMsg = searchParams.get('registered');
+  const queryError = searchParams.get('error');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const displayError = error || queryError;
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -113,15 +117,27 @@ function LoginForm() {
         )}
 
         {/* Error Alert */}
-        {error && (
+        {displayError && (
           <div
             role="alert"
             className="p-3.5 bg-oxblood/5 border border-oxblood/20 text-oxblood text-xs flex items-start gap-2.5 leading-relaxed"
           >
             <AlertCircle className="w-4 h-4 text-oxblood shrink-0 mt-0.5" aria-hidden="true" />
-            <span className="flex-1">{error}</span>
+            <span className="flex-1">{displayError}</span>
           </div>
         )}
+
+        {/* Google Authentication */}
+        <div className="space-y-4">
+          <GoogleAuthButton
+            mode="login"
+            redirectTo={redirectTo}
+            onError={(msg) => setError(msg)}
+            disabled={loading}
+          />
+
+          <AuthMethodDivider label="Or with institutional email" />
+        </div>
 
         {/* Form */}
         <form onSubmit={handleLogin} className="space-y-5" noValidate={false}>

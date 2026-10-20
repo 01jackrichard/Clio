@@ -25,11 +25,13 @@ import {
 import { registerSchema } from '@/lib/validations/auth';
 import { sanitizeRedirectUrl } from '@/lib/utils';
 import { Button, Input, Select, Card, CardContent, ClioEmblem } from '@/components/ui';
+import { GoogleAuthButton, AuthMethodDivider } from '@/components/auth/google-auth-button';
 
 function RegisterForm() {
   const searchParams = useSearchParams();
   const rawRedirect = searchParams.get('redirectTo') || searchParams.get('redirect') || '';
   const redirectTo = rawRedirect ? sanitizeRedirectUrl(rawRedirect, '') : '';
+  const queryError = searchParams.get('error');
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [department, setDepartment] = useState<Department>(DEPARTMENTS[0]);
@@ -41,6 +43,8 @@ function RegisterForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  const displayError = error || queryError;
 
   // Live password requirements
   const passwordCriteria = [
@@ -189,16 +193,30 @@ function RegisterForm() {
               </div>
             </div>
           ) : (
-            <form onSubmit={handleRegister} className="space-y-5" noValidate={false}>
-              {error && (
+            <div className="space-y-6">
+              {displayError && (
                 <div
                   role="alert"
                   className="p-3.5 bg-oxblood/5 border border-oxblood/20 text-oxblood text-xs flex items-start gap-2.5 leading-relaxed"
                 >
                   <AlertCircle className="w-4 h-4 text-oxblood shrink-0 mt-0.5" aria-hidden="true" />
-                  <span className="flex-1">{error}</span>
+                  <span className="flex-1">{displayError}</span>
                 </div>
               )}
+
+              {/* Google Authentication */}
+              <div className="space-y-4">
+                <GoogleAuthButton
+                  mode="register"
+                  redirectTo={redirectTo || '/documents'}
+                  onError={(msg) => setError(msg)}
+                  disabled={loading}
+                />
+
+                <AuthMethodDivider label="Or register with institutional email" />
+              </div>
+
+              <form onSubmit={handleRegister} className="space-y-5" noValidate={false}>
 
               {/* Display Name */}
               <Input
@@ -356,6 +374,7 @@ function RegisterForm() {
                 Create Scholar Account
               </Button>
             </form>
+          </div>
           )}
 
           {/* Footer Link */}
