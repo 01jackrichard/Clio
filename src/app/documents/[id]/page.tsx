@@ -44,21 +44,26 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
   const user = await getCurrentUser();
 
   const isOwner = Boolean(user && user.id === document.uploader_id);
+  let isAdmin = false;
+
+  if (user) {
+    const profile = await getCurrentUserProfile(user.id);
+    if (profile?.role === 'admin' && profile?.status !== 'suspended') {
+      isAdmin = true;
+    }
+  }
+
+  const canDelete = isOwner || isAdmin;
 
   if (document.visibility === 'private') {
     isUnlocked = false;
 
-    if (isOwner) {
+    if (isOwner || isAdmin) {
       isUnlocked = true;
     } else {
       if (user) {
-        const profile = await getCurrentUserProfile(user.id);
-        if (profile?.role === 'admin') isUnlocked = true;
-
-        if (!isUnlocked) {
-          const hasGrant = await hasValidAccessGrant(user.id, 'document', document.id);
-          if (hasGrant) isUnlocked = true;
-        }
+        const hasGrant = await hasValidAccessGrant(user.id, 'document', document.id);
+        if (hasGrant) isUnlocked = true;
       }
 
       if (!isUnlocked) {
@@ -169,7 +174,7 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
               )}
             </div>
 
-            {/* Actions: Download, Bookmark, Report (Only shown when unlocked) */}
+            {/* Actions: Download, Bookmark, Report, Delete (Only shown when unlocked) */}
             {isUnlocked ? (
               <DocumentActions
                 documentId={document.id}
@@ -178,6 +183,11 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
                 fileSize={document.file_size}
                 downloadCount={document.download_count}
                 isOwner={isOwner}
+                isAdmin={isAdmin}
+                canDelete={canDelete}
+                visibility={document.visibility}
+                department={document.department}
+                subject={document.subject}
               />
             ) : (
               <div className="flex items-center gap-2 px-3 py-2 bg-bone/60 border border-ink/20 meta-mono text-xs text-ash">

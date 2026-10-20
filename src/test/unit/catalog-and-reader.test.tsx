@@ -8,6 +8,18 @@ import { DocumentActions } from '@/app/documents/[id]/document-actions';
 import { ReportModal } from '@/components/report-modal';
 import { DocumentRecord } from '@/types/database';
 
+// Mock Next.js navigation
+const mockPush = vi.fn();
+const mockRefresh = vi.fn();
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: mockPush,
+    refresh: mockRefresh,
+  }),
+  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => '/documents/doc-123',
+}));
+
 const mockDoc: DocumentRecord = {
   id: 'doc-123',
   title: 'Advanced Thermodynamics & Entropy Notes',

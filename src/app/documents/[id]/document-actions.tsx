@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Download, Bookmark, Flag } from 'lucide-react';
+import { Download, Bookmark, Flag, Trash2 } from 'lucide-react';
 import { formatBytes } from '@/lib/utils';
 import { ReportModal } from '@/components/report-modal';
+import { DeleteDocumentModal } from '@/components/delete-document-modal';
 import { Button } from '@/components/ui';
 import { ShareResourceButton } from '@/components/sharing/share-resource-button';
 
@@ -14,6 +15,11 @@ interface DocumentActionsProps {
   fileSize?: number | null;
   downloadCount: number;
   isOwner?: boolean;
+  isAdmin?: boolean;
+  canDelete?: boolean;
+  visibility?: 'public' | 'private' | string;
+  department?: string;
+  subject?: string;
 }
 
 export function DocumentActions({
@@ -22,12 +28,20 @@ export function DocumentActions({
   fileSize,
   downloadCount: initialDownloadCount,
   isOwner = true,
+  isAdmin = false,
+  canDelete,
+  visibility = 'public',
+  department,
+  subject,
 }: DocumentActionsProps) {
   const [downloadCount, setDownloadCount] = useState(initialDownloadCount);
   const [downloading, setDownloading] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
   const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+
+  const userCanDelete = canDelete ?? (isOwner || isAdmin);
 
   useEffect(() => {
     async function checkFavorite() {
@@ -135,6 +149,19 @@ export function DocumentActions({
         >
           <Flag className="w-4 h-4" />
         </Button>
+
+        {userCanDelete && (
+          <Button
+            onClick={() => setDeleteModalOpen(true)}
+            variant="outline"
+            size="icon"
+            aria-label="Delete this folio"
+            title="Permanently delete this folio"
+            className="text-oxblood hover:text-white hover:bg-oxblood hover:border-oxblood transition-colors cursor-pointer"
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        )}
       </div>
 
       <ReportModal
@@ -142,6 +169,20 @@ export function DocumentActions({
         documentTitle={documentTitle}
         isOpen={reportModalOpen}
         onClose={() => setReportModalOpen(false)}
+      />
+
+      <DeleteDocumentModal
+        document={{
+          id: documentId,
+          title: documentTitle,
+          visibility,
+          file_size: fileSize,
+          department,
+          subject,
+        }}
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        redirectUrl={isOwner ? '/my-submissions' : '/documents'}
       />
     </>
   );

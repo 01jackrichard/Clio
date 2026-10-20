@@ -39,7 +39,7 @@ export async function DELETE(
     const adminClient = getAdminClient();
     const { data: document, error: docError } = await adminClient
       .from('documents')
-      .select('id, title, uploader_id, drive_file_id, status, visibility, file_size')
+      .select('id, title, uploader_id, drive_file_id, status, visibility, file_size, storage_provider, file_key')
       .eq('id', id)
       .single();
 
@@ -73,13 +73,42 @@ export async function DELETE(
       );
     }
 
-    // 4. Physical storage cleanup from Google Drive
+    // 4. Physical storage cleanup (Google Drive or Supabase storage)
     if (document.drive_file_id) {
       try {
         await deleteFileFromDrive(document.drive_file_id);
       } catch (storageErr) {
         console.warn(`[DocumentDelete] Storage cleanup warning for file ${document.drive_file_id}:`, storageErr);
       }
+    }
+
+    if (document.file_key && document.storage_provider === 'supabase') {
+      try {
+        await adminClient.storage.from('documents').remove([document.file_key]);
+      } catch (storageErr) {
+        console.warn(`[DocumentDelete] Supabase storage cleanup warning:`, storageErr);
+      }
+    }
+
+    // 4b. Clean up associated share invitations and grants
+    try {
+      await adminClient
+        .from('share_invitations')
+        .delete()
+        .eq('resource_type', 'document')
+        .eq('resource_id', id);
+    } catch {
+      // Table may be absent in some test environments
+    }
+
+    try {
+      await adminClient
+        .from('share_access_grants')
+        .delete()
+        .eq('resource_type', 'document')
+        .eq('resource_id', id);
+    } catch {
+      // Table may be absent in some test environments
     }
 
     // 5. Database deletion

@@ -14,6 +14,7 @@ import {
   FileText,
   Plus,
   Archive,
+  Lock,
 } from 'lucide-react';
 import { DocumentRecord } from '@/types/database';
 import { formatBytes, formatDate, getMaterialTypeBadge, cn } from '@/lib/utils';
@@ -22,6 +23,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { ShareResourceButton } from '@/components/sharing/share-resource-button';
+import { DeleteDocumentModal } from '@/components/delete-document-modal';
 
 interface MySubmissionsListProps {
   initialSubmissions: DocumentRecord[];
@@ -36,6 +38,7 @@ export function MySubmissionsList({
   const [submissions, setSubmissions] = useState<DocumentRecord[]>(initialSubmissions);
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DocumentRecord | null>(null);
 
   // Active status derived from explicit user tab selection or page route prop
   const activeStatus = selectedStatus ?? currentStatus ?? 'all';
@@ -44,7 +47,8 @@ export function MySubmissionsList({
   const counts = useMemo(() => {
     return {
       all: submissions.length,
-      approved: submissions.filter((s) => s.status === 'approved').length,
+      approved: submissions.filter((s) => s.status === 'approved' && s.visibility !== 'private').length,
+      private: submissions.filter((s) => s.visibility === 'private').length,
       pending: submissions.filter((s) => s.status === 'pending').length,
       rejected: submissions.filter((s) => s.status === 'rejected').length,
     };
@@ -54,6 +58,7 @@ export function MySubmissionsList({
     { id: 'all', label: 'All Materials', count: counts.all },
     { id: 'pending', label: 'Under Review', count: counts.pending },
     { id: 'approved', label: 'Published', count: counts.approved },
+    { id: 'private', label: 'Private Vault', count: counts.private },
     { id: 'rejected', label: 'Needs Revision', count: counts.rejected },
   ];
 
@@ -109,7 +114,10 @@ export function MySubmissionsList({
   // Filter submissions by the active tab
   const filteredSubmissions = useMemo(() => {
     if (activeStatus === 'all') return submissions;
-    return submissions.filter((doc) => doc.status === activeStatus);
+    if (activeStatus === 'private') return submissions.filter((doc) => doc.visibility === 'private');
+    return submissions.filter(
+      (doc) => doc.status === activeStatus && (activeStatus === 'approved' ? doc.visibility !== 'private' : true)
+    );
   }, [submissions, activeStatus]);
 
   return (
@@ -214,9 +222,16 @@ export function MySubmissionsList({
                   <div className="space-y-2 max-w-3xl">
                     {/* Header Badges & Academic Classification */}
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="outline" size="sm">
-                        {materialBadge.label}
-                      </Badge>
+                      {doc.visibility === 'private' ? (
+                        <Badge variant="oxblood" size="sm" dot>
+                          <Lock className="w-3 h-3 mr-1" />
+                          <span>Private Vault</span>
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" size="sm">
+                          {materialBadge.label}
+                        </Badge>
+                      )}
                       <span className="meta-mono text-xs font-semibold text-ink">
                         {doc.subject}
                       </span>
@@ -327,14 +342,15 @@ export function MySubmissionsList({
                       <span>View in Reader</span>
                     </Link>
 
-                    {doc.status === 'pending' && (
+                    {doc.status === 'pending' ? (
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => handleDeletePending(doc.id)}
                         disabled={deletingId === doc.id}
-                        className="text-oxblood hover:text-oxblood hover:bg-oxblood/10"
+                        className="text-oxblood hover:text-white hover:bg-oxblood hover:border-oxblood/40 transition-colors cursor-pointer"
                         title="Withdraw pending submission"
+                        aria-label="Cancel Submission"
                       >
                         {deletingId === doc.id ? (
                           <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
@@ -342,6 +358,18 @@ export function MySubmissionsList({
                           <Trash2 className="w-3.5 h-3.5 mr-1.5" />
                         )}
                         <span>Cancel Submission</span>
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setDeleteTarget(doc)}
+                        className="text-oxblood hover:text-white hover:bg-oxblood hover:border-oxblood/40 transition-colors cursor-pointer"
+                        title="Permanently delete folio"
+                        aria-label="Delete Folio"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                        <span>Delete</span>
                       </Button>
                     )}
                   </div>
@@ -376,6 +404,17 @@ export function MySubmissionsList({
           </div>
         </Card>
       )}
+
+      {/* Delete Folio Modal with comprehensive warning */}
+      <DeleteDocumentModal
+        document={deleteTarget}
+        isOpen={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onSuccess={(deletedId) => {
+          setSubmissions((prev) => prev.filter((s) => s.id !== deletedId));
+          setDeleteTarget(null);
+        }}
+      />
     </div>
   );
 }
